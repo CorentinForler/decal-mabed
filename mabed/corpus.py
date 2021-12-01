@@ -16,6 +16,9 @@ from scipy.sparse.dok import dok_matrix
 # mabed
 import mabed.utils as utils
 
+# nlp
+import spacy
+
 __authors__ = "Adrien Guille, Nicolas Dugué"
 __email__ = "adrien.guille@univ-lyon2.fr"
 
@@ -104,6 +107,8 @@ class Corpus:
     def discretize(self, time_slice_length):
         self.time_slice_length = time_slice_length
 
+        nlp = spacy.load("en_core_web_sm")
+
         # clean the data directory
         if os.path.exists('corpus'):
             shutil.rmtree('corpus')
@@ -126,7 +131,13 @@ class Corpus:
             (len(self.vocabulary), self.time_slice_count), dtype=np.uint32)
         self.mention_freq = dok_matrix(
             (len(self.vocabulary), self.time_slice_count), dtype=np.uint32)
+
+        my_index = 0
         for (date, text) in self.source_csv_iterator():
+            my_index += 1
+            if my_index % 1000 == 0:
+                print('*** current line:', my_index)
+
             tweet_date = datetime.strptime(date, DATETIME_FORMAT)
             time_delta = (tweet_date - self.start_date)
             time_delta = time_delta.total_seconds() / 60
@@ -136,7 +147,23 @@ class Corpus:
             tweet_text = text
             words = self.tokenize(tweet_text)
 
-            mention = '@' in tweet_text
+            # mention = '@' in tweet_text
+            # mention = 'Apple' in tweet_text
+
+            nlp_text = nlp(tweet_text)
+
+            # propnouns = filter(lambda t: t.pos_ == 'PROPN', nlp_text)
+            # has_propnouns = any(propnouns)
+
+            orgs = filter(lambda t: t.ent_type_ ==
+                          'ORG' and len(t.text) > 1, nlp_text)
+            # At least 2 organizations mentionned
+            has_orgs = any(orgs) and any(orgs)
+
+            mention = has_orgs
+
+            # if mention:
+            #     print(tweet_text)
 
             for word in set(words):
                 word_id = self.vocabulary.get(word)
