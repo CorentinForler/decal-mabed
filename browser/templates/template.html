@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" type="text/css">
     <link href="{{ url_for('static', filename='css/jquery.dataTables.min.css') }}" rel="stylesheet" type="text/css">
-    <script src="{{ url_for('static', filename='js/jquery-1.12.0.min.js') }}" charset="utf-8"></script>
+    <script src="{{ url_for('static', filename='js/jquery-3.6.0.min.js') }}" charset="utf-8"></script>
     <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}" charset="utf-8"></script>
     <link href="{{ url_for('static', filename='css/nv.d3.css') }}" rel="stylesheet" type="text/css">
     <script src="{{ url_for('static', filename='js/d3.min.js') }}" charset="utf-8"></script>
@@ -47,7 +47,7 @@
                 </tbody>
             </table>
         <section id="event_impact">Event impact</section>
-        <svg id="chart1" style="height: 300px;"></svg>
+        <svg id="chart1" style="height: 700px;"></svg>
     </div>
 </body>
 <script>
@@ -73,7 +73,7 @@
         chart.yAxis.scale().domain([0, 20]);
         chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) });
         chart.yAxis.tickFormat(d3.format(',.4f'));
-        chart.height(300);
+        chart.height(700);
 
         chart.legend.vers('furious');
 
@@ -82,17 +82,54 @@
         d3.select('#chart1')
             .datum(event_impact)
             .call(chart)
-            .each('start', function() {
-                setTimeout(function() {
-                    d3.selectAll('#chart1 *').each(function() {
-                        if(this.__transition__)
-                            this.__transition__.duration = 1;
-                    })
-                }, 0)
-            });
+            // .each('start', function() {
+            //     setTimeout(function() {
+            //         d3.selectAll('#chart1 *').each(function() {
+            //             if(this.__transition__)
+            //                 this.__transition__.duration = 1;
+            //         })
+            //     }, 0)
+            // });
 
         nv.utils.windowResize(chart.update);
         return chart;
+    });
+
+    const event_table = document.querySelector('#events');
+    event_table.addEventListener('click', function(e) {
+        if (e.target.tagName === 'TD') {
+            const tr = e.target.parentNode;
+            const tds = tr.children;
+            const start = new Date(tds[1].innerText);
+            const end = new Date(tds[2].innerText);
+            chart.xDomain([start, end]).update();
+        }
+    });
+    
+    document.querySelector('#event_impact').addEventListener('click', function(e) {
+        const rows = event_table.querySelectorAll('tr');
+        // find best row
+        let min_date = +Infinity;
+        let max_date = -Infinity;
+        let best_score = 0;
+        
+        for (const row of rows) {
+            const tds = row.children;
+            const start = new Date(tds[1].innerText)
+            const end = new Date(tds[2].innerText)
+
+            if (start < min_date) {
+                min_date = start;
+            }
+            if (end > max_date) {
+                max_date = end;
+            }
+        }
+        
+        min_date = new Date((+min_date) - 24 * 3600 * 1000);
+        max_date = new Date((+max_date) + 24 * 3600 * 1000);
+
+        chart.xDomain([min_date, max_date]).update()
     });
 </script>
 </html>
