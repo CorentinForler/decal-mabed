@@ -125,7 +125,7 @@ class MABED:
         if self.event_graph.has_node(main_word):
             for related_word, weight in event[3]:
                 if self.event_graph.has_edge(main_word, related_word):
-                    interval_0 = self.event_graph.node[related_word]['interval']
+                    interval_0 = self.event_graph.nodes[related_word]['interval']
                     interval_1 = event[1]
                     if st.overlap_coefficient(interval_0, interval_1) > self.sigma:
                         self.redundancy_graph.add_node(main_word, description=event)
@@ -141,7 +141,7 @@ class MABED:
 
     def get_event(self, main_term):
         if self.event_graph.has_node(main_term):
-            event_node = self.event_graph.node[main_term]
+            event_node = self.event_graph.nodes[main_term]
             if event_node['main_term']:
                 related_words = []
                 for node in self.event_graph.predecessors(main_term):
@@ -164,7 +164,7 @@ class MABED:
                 if main_word in component:
                     main_term = ', '.join(component)
                     for node in component:
-                        descriptions.append(self.redundancy_graph.node[node]['description'])
+                        descriptions.append(self.redundancy_graph.nodes[node]['description'])
                     break
             if len(descriptions) == 0:
                 related_words = event[3]
