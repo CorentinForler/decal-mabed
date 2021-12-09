@@ -82,4 +82,4 @@ if __name__ == '__main__':
         event_browser_freezer.freeze()
         print('Done.')
     else:
-        event_browser.run(debug=False, host='localhost', port=2016)
+        event_browser.run(debug=False, host='localhost', port=8080)
