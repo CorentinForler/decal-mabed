@@ -1,15 +1,11 @@
+.DS_Store
 *_local.py
-
 *.pyc
 
 .idea/
+.vscode/
 
 corpus/
-
 events/
-
-.DS_Store
-
 demo/
-
-.vscode/
+html/
