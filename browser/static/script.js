@@ -1,5 +1,124 @@
 /* global d3, nv, event_impact */
 
+function appendFilterEmboss(defs, name, color = 'white', scale = 1) {
+  const filter = defs.append('filter')
+    .attr('id', name)
+    .attr('filterUnits', 'objectBoundingBox')
+    .attr('x', '0%')
+    .attr('y', '0%')
+    .attr('width', '100%')
+    .attr('height', '100%')
+
+  filter.append('feOffset').attr({
+    dx: '0',
+    dy: '0',
+    in: 'SourceGraphic',
+    // result: 'A',
+  })
+  // filter.append('feOffset').attr({
+  //   dx: '0',
+  //   dy: '10',
+  //   in: 'SourceGraphic',
+  //   result: 'B',
+  // })
+
+  // filter.append('feComposite').attr({
+  //   in: 'B',
+  //   in2: 'A',
+  //   operator: 'over',
+  // })
+
+  filter.append('feComponentTransfer').html(`
+    <feFuncR type="discrete" tableValues="0 1"/>
+    <feFuncG type="discrete" tableValues="0 1"/>
+    <feFuncB type="discrete" tableValues="0 1"/>
+    <feFuncA type="discrete" tableValues="0 1"/>
+  `)
+
+  filter.append('feGaussianBlur').attr({
+    class: 'gb1',
+    stdDeviation: 5,
+    result: 'SourceGraphic_blurred',
+  })
+
+  filter.append('feDiffuseLighting').attr({
+    in: 'SourceGraphic_blurred',
+    'lighting-color': color,
+    // 'lighting-color': 'white',
+    surfaceScale: 60,
+  }).append('feDistantLight').attr({
+    azimuth: 45,
+    // elevation: -200,
+    // elevation: 480,
+    elevation: -210,
+  })
+
+  filter.append('feGaussianBlur').attr({
+    class: 'gb2',
+    stdDeviation: 3,
+  })
+
+  filter.append('feComponentTransfer')
+    .attr('result', 'OUTPUT')
+    .append('feFuncA')
+    .attr({ type: 'linear', slope: '0', intercept: '1' })
+
+  // SVG threshold
+  filter.append('feComponentTransfer')
+    .attr('in', 'SourceGraphic_blurred')
+    .attr('color-interpolation-filters', 'sRGB')
+    .attr('result', 'SourceGraphic_blob')
+    .html(`
+      <feFuncR type="discrete" tableValues="0 1"/>
+      <feFuncG type="discrete" tableValues="0 1"/>
+      <feFuncB type="discrete" tableValues="0 1"/>
+      <feFuncA type="discrete" tableValues="0 1"/>
+  `)
+
+
+  filter.append('feComposite')
+    .attr('in', 'OUTPUT')
+    .attr('operator', 'in')
+    .attr('in2', 'SourceGraphic_blurred')
+
+  filter.append('feComponentTransfer')
+    .append('feFuncA')
+    .attr({ type: 'linear', slope: '0', intercept: '1' })
+
+  filter.append('feComposite')
+    .attr('operator', 'in')
+    .attr('in2', 'SourceGraphic')
+
+  // filter.append('feComposite')
+  //   .attr('in', 'OUTPUT')
+  //   .attr('operator', 'in')
+  //   .attr('in2', 'SourceGraphic_blob')
+
+
+  // filter.append('feFlood')
+  //   .attr('result', 'floodFill')
+  //   .attr('x', '0')
+  //   .attr('y', '0')
+  //   .attr('width', '100%')
+  //   .attr('height', '100%')
+  //   .attr('flood-color', 'red')
+  //   .attr('flood-opacity', '1')
+  // filter.append('feBlend')
+  //   .attr('in', 'composite')
+  //   .attr('in2', 'floodFill')
+  //   .attr('mode', 'multiply')
+  // filter.append('feImage')
+  //   .attr('xlink:href', 'data:image/svg+xml;charset=utf-8,<svg width="100%" height="100%"><rect fill="yellow" width="100%" height="100%" /></svg>')
+  // filter.append('feComposite')
+  //   .attr('in', 'SourceGraphic')
+  //   .attr('operator', 'arithmetic')
+  //   .attr('in2', 'lorem')
+  //   .attr('k1', '1')
+  //   .attr('k2', '0.1')
+  //   .attr('k3', '0.0')
+  //   .attr('k4', '-0.1')
+}
+
 function estimateTextBBox(text, attrs, styles) {
   const svg = d3.select('#chart1').append('svg')
   const textNode = svg.append('text')
@@ -40,11 +159,11 @@ function textPatternFactory(defs, id, { text, fg, bg, strokeColor = 'none', angl
     .attr('height', dh * (10 - 1))
     .attr('width', dw * 2)
 
-  pattern
-    .append('rect')
-    .attr('height', '100%')
-    .attr('width', '100%')
-    .attr('fill', bg)
+  pattern.append('rect').attr({
+    height: '100%',
+    width: '100%',
+    fill: bg,
+  })
 
   for (let x = -1; x < 3; x++) {
     for (let y = 0; y < 10; y++) {
@@ -82,44 +201,84 @@ function chartStyleLines(svg, event_impact, config) {
     .domain(mM)
     .range([0, 1])
 
+  const getPoints = (singleEventImpact) => {
+    // make time range
+    const rangeTime = d3.extent(singleEventImpact.values, d => d[0])
+    // const rangeValue = d3.extent(singleEventImpact.values, d => d[1]);
+
+    const arrTop = []
+    const arrBottom = []
+
+    const scaleX = d3.scale.linear()
+      .domain(rangeTime)
+      .range([0, config.width])
+
+    const eventOffset = offsetY(singleEventImpact.seriesIndex)
+    // const N = singleEventImpact.values.length
+    singleEventImpact.values.forEach((d) => {
+      const [time, value] = d
+      const dx = scaleX(time)
+      const dy = eventOffset
+      const offset = scaleY(value) * offsetYDelta
+      arrTop.push([dx, dy - offset * config.scaleHeightBottom])
+      arrBottom.push([dx, dy + offset * config.scaleHeightTop])
+    })
+    const arr = arrTop.concat(arrBottom.reverse())
+    return arr.map(x => x.join(',')).join(' ')
+  }
+
   // add one polygon for each data in event_impact
   svg
     .attr('preserveAspectRatio', 'xMidYMid meet')
     .attr('viewBox', `0 0 ${config.width} ${config.height}`)
     .style('width', '100%')
     .style('height', CSS.percent(100 * config.height / config.width))
-    .style('background-color', '#333')
-    .selectAll('polygon')
+    .style('background', 'white')
+    // .style('background', 'linear-gradient(to bottom left, #0ff, #606, #00f)')
+
+  // const bg = svg
+  //   .selectAll('g.background')
+  //   .data(event_impact)
+  //   .enter()
+  //   .append('g')
+  //   .attr('class', 'background')
+
+  // const hh = (d) => (config.scaleHeightTop + config.scaleHeightBottom) * offsetYDelta
+
+  // bg.append('rect').attr({
+  //   x: 0,
+  //   y: d => {
+  //     const h = hh(d)
+  //     const y = offsetY(d.seriesIndex)
+  //     return y - h / 2
+  //   },
+  //   width: config.width,
+  //   height: hh,
+  //   fill: d => {
+  //     const c = d3.lab(d.color)
+  //     c.l = 90
+  //     return c
+  //   },
+  // })
+
+  const fg = svg
+    .selectAll('g.series')
     .data(event_impact)
     .enter()
-    .append('polygon')
-    .attr('fill', (d) => `url("#pattern-noangle--${slugifyToId(d.key)}")`)
-    .attr('stroke', (d) => d.color)
-    .attr('points', (singleEventImpact) => {
-      // make time range
-      const rangeTime = d3.extent(singleEventImpact.values, d => d[0])
-      // const rangeValue = d3.extent(singleEventImpact.values, d => d[1]);
+    .append('g')
+    .attr('class', 'series')
 
-      const arrTop = []
-      const arrBottom = []
+  fg.append('polygon')
+    .attr('fill', '#fff')
+    // .attr('fill', (d) => d.color)
+    .attr('points', getPoints)
+    .attr('filter', d => `url("#emboss-${slugifyToId(d.key)}")`)
 
-      const scaleX = d3.scale.linear()
-        .domain(rangeTime)
-        .range([0, config.width])
-
-      const eventOffset = offsetY(singleEventImpact.seriesIndex)
-      // const N = singleEventImpact.values.length
-      singleEventImpact.values.forEach((d) => {
-        const [time, value] = d
-        const dx = scaleX(time)
-        const dy = eventOffset
-        const offset = scaleY(value) * offsetYDelta
-        arrTop.push([dx, dy - offset * config.scaleHeightBottom])
-        arrBottom.push([dx, dy + offset * config.scaleHeightTop])
-      })
-      const arr = arrTop.concat(arrBottom.reverse())
-      return arr.map(x => x.join(',')).join(' ')
-    })
+  fg.append('polygon')
+    // .attr('fill', 'grey')
+    .attr('fill', (d) => `url("#pattern-textonly--${slugifyToId(d.key)}")`)
+    // .attr('stroke', (d) => d.color)
+    .attr('points', getPoints)
 }
 
 
@@ -234,6 +393,16 @@ nv.addGraph(function() {
       angle: 0,
       lineHeight: 1.1,
     })
+    textPatternFactory(defs, `pattern-textonly--${id}`, {
+      text, bg: 'transparent',
+      fg: bg.l > 0.5 ? '#000' : '#fff',
+      // strokeColor: bg.l < 0.5 ? '#000' : '#fff',
+      angle: 0,
+      lineHeight: 1.1,
+    })
+
+    appendFilterEmboss(defs, `emboss-${id}`, bg)
+
     // css += `.nv-area-${index} { fill: url("#pattern--${id}") !important; }` + '\n'
     // css += `.nv-area-${index}:hover { fill: url("#pattern-hover--${id}") !important; }` + '\n'
     css += `[custom-fill="${id}"] { fill: url("#pattern--${id}") !important; }` + '\n'
@@ -304,3 +473,29 @@ nv.addGraph(function() {
   chart.update()
   return chart
 })
+
+// window.addEventListener('mousemove', (e) => {
+//   const mouseX = e.clientX
+//   const mouseXPercent = mouseX / window.innerWidth
+//   const mouseY = e.clientY
+//   const mouseYPercent = mouseY / window.innerHeight
+
+//   if (document.querySelector('filter[id^="emboss"]')) {
+//     document.querySelectorAll('filter[id^="emboss-"]').forEach((x) => {
+//       const feDiffuseLighting = x.querySelector('feDiffuseLighting')
+//       const feDistantLight = x.querySelector('feDistantLight')
+//       const feGaussianBlur1 = x.querySelector('feGaussianBlur.gb1')
+//       const feGaussianBlur2 = x.querySelector('feGaussianBlur.gb2')
+//       const feOffset = x.querySelector('feOffset')
+
+//       // feDiffuseLighting?.setAttribute('surfaceScale', mouseXPercent * 500)
+//       // feDistantLight?.setAttribute('azimuth', mouseXPercent * 360)
+//       // feDistantLight?.setAttribute('elevation', (mouseXPercent-0.5) * 1000)
+
+//       feGaussianBlur1?.setAttribute('stdDeviation', mouseYPercent * 10)
+//       feGaussianBlur2?.setAttribute('stdDeviation', mouseXPercent * 10)
+
+//       // feOffset?.setAttribute('dy', mouseYPercent * 100)
+//     })
+//   }
+// })
