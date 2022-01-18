@@ -171,11 +171,11 @@ class Corpus:
         utils.save_pickle(data, file_path)
 
     def discretize(self, time_slice_length):
-        import spacy
+        # import spacy
 
         self.time_slice_length = time_slice_length
 
-        nlp = spacy.load("en_core_web_sm")
+        # nlp = spacy.load("en_core_web_sm")
 
         # clean the data directory
         if os.path.exists('corpus'):
@@ -236,19 +236,19 @@ class Corpus:
             words = self.tokenize(text)
 
             # mention = '@' in text
-            # mention = 'Apple' in text
+            mention = 'Apple' in text
 
-            nlp_text = nlp(text)
+            # nlp_text = nlp(text)
 
             # propnouns = filter(lambda t: t.pos_ == 'PROPN', nlp_text)
             # has_propnouns = any(propnouns)
 
-            orgs = filter(lambda t: t.ent_type_ ==
-                          'ORG' and len(t.text) > 1, nlp_text)
-            # At least 2 organizations mentionned
-            has_orgs = any(orgs) and any(orgs)
+            # orgs = filter(lambda t: t.ent_type_ ==
+            #               'ORG' and len(t.text) > 1, nlp_text)
+            # # At least 2 organizations mentionned
+            # has_orgs = any(orgs) and any(orgs)
 
-            mention = has_orgs
+            # mention = has_orgs
 
             # if mention:
             #     print(text)
