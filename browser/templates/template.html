@@ -52,15 +52,16 @@
         <svg id="chart-style-lines-mirror" style="height: 400px;"></svg>
     </div>
 </body>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 <script>
     $(document).ready(function() {
         $('#events').dataTable( {
             "order": [[ 0, 'desc' ]]
         } );
     });
+
+    const event_impact = {{ event_impact| safe }}
+    init(event_impact)
 </script>
-<script>
-    var event_impact = {{ event_impact|safe }}
-</script>
-<script src="{{ url_for('static', filename='script.js') }}"></script>
 </html>

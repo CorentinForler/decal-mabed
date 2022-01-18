@@ -1,8 +1,8 @@
 # coding: utf-8
 
 # std
-import timeit
 import argparse
+from textwrap import dedent
 
 # mabed
 from mabed.corpus import Corpus
@@ -12,50 +12,133 @@ import mabed.utils as utils
 __author__ = "Adrien Guille"
 __email__ = "adrien.guille@univ-lyon2.fr"
 
-if __name__ == '__main__':
-    p = argparse.ArgumentParser(description='Perform mention-anomaly-based event detection (MABED)')
-    p.add_argument('i', metavar='input', type=str, help='Input csv file')
-    p.add_argument('k', metavar='top_k_events', type=int, help='Number of top events to detect')
-    p.add_argument('--sw', metavar='stopwords', type=str, help='Stop-word list', default='stopwords/twitter_en.txt')
-    p.add_argument('--sep', metavar='separator', type=str, help='CSV separator', default='\t')
-    p.add_argument('--o', metavar='output', type=str, help='Output pickle file', default=None)
-    p.add_argument('--maf', metavar='min_absolute_frequency', type=int, help='Minimum absolute word frequency, default to 10', default=10)
-    p.add_argument('--mrf', metavar='max_relative_frequency', type=float, help='Maximum absolute word frequency, default to 0.4', default=0.4)
-    p.add_argument('--tsl', metavar='time_slice_length', type=int, help='Time-slice length, default to 30 (minutes)', default=30)
-    p.add_argument('--p', metavar='p', type=int, help='Number of candidate words per event, default to 10', default=10)
-    p.add_argument('--t', metavar='theta', type=float, help='Theta, default to 0.6', default=0.6)
-    p.add_argument('--s', metavar='sigma', type=float, help='Sigma, default to 0.6', default=0.6)
+
+def parse_arguments():
+    p = argparse.ArgumentParser(
+        description='Perform mention-anomaly-based event detection (MABED)')
+
+    p.add_argument('i', metavar='input', type=str,
+                   help='Input csv file')
+    p.add_argument('k', metavar='top_k_events', type=int,
+                   help='Number of top events to detect')
+    p.add_argument('--o', metavar='output', type=str,
+                   help='Output pickle file', default=None)
+
+    # Corpus argument group
+    c = p.add_argument_group('Corpus discretization')
+
+    # Corpus: Initialization
+    c.add_argument('--sw', metavar='stopwords', type=str,
+                   help='Stop-word list', default='stopwords/twitter_en.txt')
+    c.add_argument('--sep', metavar='csv_separator', type=str,
+                   help='CSV separator', default='\t')
+    c.add_argument('--maf', metavar='min_absolute_frequency', type=int,
+                   help='Minimum absolute word frequency, default to 10', default=10)
+    c.add_argument('--mrf', metavar='max_relative_frequency', type=float,
+                   help='Maximum absolute word frequency, default to 0.4', default=0.4)
+
+    # Corpus: Discretization
+    c.add_argument('--keep-corpus', action='store_true',
+                   help='Keep corpus data between runs and allow skipping the discretization step if possible')
+
+    c.add_argument('--tsl', metavar='time_slice_length', type=int,
+                   help='Time-slice length, default to 30 (minutes)', default=30)
+
+    # MABED argument group
+    m = p.add_argument_group('Event detection')
+    m.add_argument('--p', metavar='p', type=int,
+                   help='Number of candidate words per event, default to 10', default=10)
+    m.add_argument('--t', metavar='theta', type=float,
+                   help='Theta, default to 0.6', default=0.6)
+    m.add_argument('--s', metavar='sigma', type=float,
+                   help='Sigma, default to 0.6', default=0.6)
+
     args = p.parse_args()
-    print('Parameters:')
-    print('   Corpus: %s\n   k: %d\n   Stop-words: %s\n   Min. abs. word frequency: %d\n   Max. rel. word frequency: %f' %
-          (args.i, args.k, args.sw, args.maf, args.mrf))
-    print('   p: %d\n   theta: %f\n   sigma: %f' % (args.p, args.t, args.s))
+    return args
 
-    print('Loading corpus...')
-    start_time = timeit.default_timer()
-    my_corpus = Corpus(args.i, args.sw, args.maf, args.mrf, args.sep)
-    elapsed = timeit.default_timer() - start_time
-    print('Corpus loaded in %f seconds.' % elapsed)
 
+def main():
+    args = parse_arguments()
+
+    input_path = args.i
+    top_k_events = args.k
+    stopwords = args.sw
+    csv_separator = args.sep
+    output_path = args.o
+    min_absolute_frequency = args.maf
+    max_relative_frequency = args.mrf
     time_slice_length = args.tsl
-    print('Partitioning tweets into %d-minute time-slices...' % time_slice_length)
-    start_time = timeit.default_timer()
-    my_corpus.discretize(time_slice_length)
-    elapsed = timeit.default_timer() - start_time
-    print('Partitioning done in %f seconds.' % elapsed)
-
-    print('Running MABED...')
-    k = args.k
-    p = args.p
+    p_candidates = args. p
     theta = args.t
     sigma = args.s
-    start_time = timeit.default_timer()
-    mabed = MABED(my_corpus)
-    mabed.run(k=k, p=p, theta=theta, sigma=sigma)
-    mabed.print_events()
-    elapsed = timeit.default_timer() - start_time
-    print('Event detection performed in %f seconds.' % elapsed)
+    keep_corpus = args.keep_corpus
 
-    if args.o is not None:
-        utils.save_events(mabed, args.o)
-        print('Events saved in %s' % args.o)
+    print(dedent(f'''
+    Parameters:
+        Corpus: {input_path}
+        k: {top_k_events}
+        Stop-words: {stopwords}
+        Min. abs. word freq.: {min_absolute_frequency}
+        Max. rel. word freq.: {max_relative_frequency}
+        p: {p_candidates}
+        theta: {theta}
+        sigma: {sigma}
+    '''))
+
+    print()
+    print('- ' * 10)
+    print()
+
+    print('Loading corpus...')
+    with utils.timer('Corpus loaded'):
+        my_corpus = Corpus(
+            input_path,
+            stopwords,
+            min_absolute_frequency,
+            max_relative_frequency,
+            csv_separator)
+
+    print()
+    print('- ' * 10)
+    print()
+
+    print('Partitioning tweets into %d-minute time-slices...' %
+          time_slice_length)
+    with utils.timer('Partitioning done'):
+        if keep_corpus:
+            my_corpus.import_discretized(
+                'discretized.pickle', time_slice_length)
+        else:
+            my_corpus.discretize(time_slice_length)
+
+    print()
+    print('- ' * 10)
+    print()
+
+    print('Running MABED...')
+    with utils.timer('Event detection performed'):
+        mabed = MABED(my_corpus)
+        mabed.run(k=top_k_events, p=p_candidates, theta=theta, sigma=sigma)
+        mabed.print_events()
+
+    print()
+    if output_path is not None:
+        utils.save_events(mabed, output_path)
+        print('Events saved in %s' % output_path)
+
+
+# if __name__ == '__main__':
+#     import cProfile
+#     import pstats
+#     with cProfile.Profile() as pr:
+#         main()
+
+#     stats = pstats.Stats(pr)
+#     stats.sort_stats(pstats.SortKey.TIME)
+#     # Now you have two options, either print the data or save it as a file
+#     stats.print_stats()  # Print The Stats
+#     # Saves the data in a file, can me used to see the data visually
+#     stats.dump_stats("/Users/cogk/Desktop/profile.prof")
+
+if __name__ == '__main__':
+    main()
