@@ -349,40 +349,42 @@ function init(event_impact) {
   })
 
   const event_table = document.querySelector('#events')
-  event_table.addEventListener('click', function (e) {
-    if (e.target.tagName === 'TD') {
-      const tr = e.target.parentNode
-      const tds = tr.children
-      const start = new Date(tds[1].innerText)
-      const end = new Date(tds[2].innerText)
-      chart.xDomain([start, end]).update()
-    }
-  })
-
-  document.querySelector('#event_impact').addEventListener('click', function () {
-    const rows = event_table.querySelectorAll('tr')
-    let min_date = +Infinity
-    let max_date = -Infinity
-    // let best_score = 0
-
-    for (const row of rows) {
-      const tds = row.children
-      const start = new Date(tds[1].innerText)
-      const end = new Date(tds[2].innerText)
-
-      if (start < min_date) {
-        min_date = start
+  if (event_table) {
+    event_table.addEventListener('click', function (e) {
+      if (e.target.tagName === 'TD') {
+        const tr = e.target.parentNode
+        const tds = tr.children
+        const start = new Date(tds[1].innerText)
+        const end = new Date(tds[2].innerText)
+        chart.xDomain([start, end]).update()
       }
-      if (end > max_date) {
-        max_date = end
+    })
+
+    document.querySelector('#event_impact').addEventListener('click', function () {
+      const rows = event_table.querySelectorAll('tr')
+      let min_date = +Infinity
+      let max_date = -Infinity
+      // let best_score = 0
+
+      for (const row of rows) {
+        const tds = row.children
+        const start = new Date(tds[1].innerText)
+        const end = new Date(tds[2].innerText)
+
+        if (start < min_date) {
+          min_date = start
+        }
+        if (end > max_date) {
+          max_date = end
+        }
       }
-    }
 
-    min_date = new Date((+min_date) - 24 * 3600 * 1000)
-    max_date = new Date((+max_date) + 24 * 3600 * 1000)
+      min_date = new Date((+min_date) - 24 * 3600 * 1000)
+      max_date = new Date((+max_date) + 24 * 3600 * 1000)
 
-    chart.xDomain([min_date, max_date]).update()
-  })
+      chart.xDomain([min_date, max_date]).update()
+    })
+  }
 
   // window.addEventListener('mousemove', (e) => {
   //   const mouseX = e.clientX
@@ -410,10 +412,24 @@ function init(event_impact) {
   //   }
   // })
 
-  const form = document.createElement('form')
+  let form = document.querySelector('form#interactive-form')
+  if (!form){
+    form = document.createElement('form')
+    const header = document.getElementById('header')
+    header.appendChild(form)
+  }
+
+  form.id = 'interactive-form'
   form.innerHTML = `
     <style>
-      form { font-size: 18px; background: black; color: white; padding: 4em; text-align: left; }
+      form {
+        font-size: 18px;
+        line-height: 1.2;
+        background: black;
+        color: white;
+        padding: 4em;
+        text-align: left;
+      }
       form label { display: block; }
       form > div { width: fit-content; margin: auto; }
       .spinner-container { display: block; }
@@ -428,10 +444,13 @@ function init(event_impact) {
       .spinner-container[hidden] { opacity: 0; visibility: hidden; }
     </style>
     <div>
+      <label>path = <input name="path" type="text" value="stock_article.csv" /> (CSV file path)</label>
+      <label>stopwords = <input name="stopwords" type="text" value="customStopWords.txt" /> (stop-words file path)</label>
+      <br />
       <label>T = <input name="tsl" type="number" value="1440" step=1 min=1 /> (time slice length)</label>
       <label>maf = <input name="maf" type="number" value="10" step=1 min=1 /> (min. abs. freq.)</label>
       <label>mrf = <input name="mrf" type="number" value="0.4" step=0.1 min=0 max=1 /> (max. rel. freq.)</label>
-
+      <br />
       <label>K = <input name="k" type="number" value="10" step=1 min=1 /> (number of top events to detect)</label>
       <label>P = <input name="p" type="number" value="10" step=1 min=1 /> (number of candidate words per event)</label>
       <label>θ = <input name="t" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
@@ -446,7 +465,6 @@ function init(event_impact) {
       </div>
     </div>
   `
-  document.body.appendChild(form)
   form.addEventListener('submit', async function (e) {
     // prevent submit
     e.preventDefault()
@@ -463,7 +481,7 @@ function init(event_impact) {
   })
 }
 
-function update(event_impact) {
+function update(event_impact, opts = {}) {
     const svg = d3.select('#chart1')
 
     let defs = svg.select('defs.all-defs')
@@ -552,6 +570,10 @@ function update(event_impact) {
     chartStyleLines(d3.select('#chart-style-lines'), event_impact, chartStyleLinesParams1)
     chartStyleLines(d3.select('#chart-style-lines-mirror'), event_impact, chartStyleLinesParams2)
 
+    if (opts.zoom) {
+      chart.xDomain(opts.zoom).update()
+    }
+
     chart.update()
 }
 
@@ -577,6 +599,36 @@ async function fetch_update(params) {
     return { key, values }
   })
 
-  console.log(data)
-  update(events_impact)
+  // Auto-zoom
+  let min_date = +Infinity
+  let max_date = -Infinity
+  for (const event of data) {
+    for (const impact of event.impact) {
+      if (impact.value > 0) {
+        const date = new Date(impact.date)
+        if (date < min_date) {
+          min_date = date
+        }
+        if (date > max_date) {
+          max_date = date
+        }
+      }
+    }
+
+    // const start = new Date(event.start)
+    // const end = new Date(event.end)
+    // if (start < min_date) { min_date = start }
+    // if (end > max_date) { max_date = end }
+  }
+
+  let zoom = null
+  if (min_date <= max_date) {
+    // min_date = new Date((+min_date) - 24 * 3600 * 1000)
+    // max_date = new Date((+max_date) + 24 * 3600 * 1000)
+    zoom = [min_date, max_date]
+  }
+
+  console.log({zoom})
+
+  update(events_impact, { zoom })
 }

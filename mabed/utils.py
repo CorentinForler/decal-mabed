@@ -1,11 +1,58 @@
 # coding: utf-8
+import csv
+from datetime import datetime
 import timeit
 import contextlib
 import os
 import pickle
+from typing import Counter
 
 __author__ = "Adrien Guille"
 __email__ = "adrien.guille@univ-lyon2.fr"
+
+
+def guess_datetime_format(s: str):
+    formats = [
+        '%Y-%m-%d',
+        '%Y/%m/%d',
+        '%Y.%m.%d',
+
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%dT%H:%M:%S',
+
+        '%Y-%m-%d %H:%M:%SZ',
+        '%Y-%m-%dT%H:%M:%S%Z',
+
+        '%Y-%m-%d %H:%M:%S.%fZ',
+        '%Y-%m-%dT%H:%M:%S.%fZ',
+        '%a, %d %b %Y %H:%M:%S %Z',
+        '%a %d %b %Y %H:%M:%S %Z',
+        '%a, %d %b %Y %H:%M:%S',
+        '%a %d %b %Y %H:%M:%S',
+    ]
+    for fmt in formats:
+        try:
+            datetime.strptime(s, fmt)
+            return fmt
+        except ValueError:
+            continue
+    return None
+
+# def guess_datetime_format(s: str) -> str:
+#     fmt = ''
+#     if len(s) <= 10:
+#         fmt = '%Y-%m-%d'
+#     else:
+#         fmt = '%Y-%m-%d %H:%M:%S'
+#     if '/' in s:
+#         fmt = fmt.replace('-', '/', 2)
+#     elif '.' in s:
+#         fmt = fmt.replace('-', '.', 2)
+#     try:
+#         datetime.strptime(s, fmt)
+#         return fmt
+#     except ValueError:
+#         return None
 
 
 def save_events(mabed_object, file_path):
@@ -131,3 +178,65 @@ def timer(step_name: str):
     yield start_time
     elapsed = timeit.default_timer() - start_time
     print(step_name, f'in {elapsed:.3f} seconds.')
+
+
+def auto_detect_csv_settings(path: str):
+    candidate_col_names_datetime = [
+        'date', 'time', 'datetime', 'timestamp', 'date_time']
+    candidate_col_names_text = [
+        'text', 'tweet', 'tweet_text', 'message', 'content']
+
+    separator = '\t'
+    date_col_name = 'date'
+    text_col_name = 'text'
+    datetime_format = '%Y-%m-%d %H:%M:%S'
+
+    with open(path, 'r', encoding='utf8') as f:
+        header_line = f.readline()
+
+        if '\t' in header_line:
+            separator = '\t'
+        elif ',' in header_line:
+            separator = ','
+        else:
+            raise Exception('Failed to detect CSV SEPARATOR')
+
+        f.seek(0)
+        reader = csv.reader(f, delimiter=separator)
+        header_line = next(reader)
+
+        for c in header_line:
+            if c.lower() in candidate_col_names_datetime:
+                date_col_name = c
+                break
+        else:
+            raise Exception('Failed to detect CSV DATE column name')
+
+        for c in header_line:
+            if c.lower() in candidate_col_names_text:
+                text_col_name = c
+                break
+        else:
+            raise Exception('Failed to detect CSV TEXT column name')
+
+        # Grab ten lines or less
+        date_index = header_line.index(date_col_name)
+        dt_formats = Counter()
+        i = 0
+        for line in reader:
+            dt = line[date_index]
+            dt_fmt = guess_datetime_format(dt) or 'FAIL'
+            dt_formats[dt_fmt] += 1
+            i += 1
+            if i > 20:
+                break
+
+        datetime_format = dt_formats.most_common(1)[0][0]
+        if datetime_format == 'FAIL':
+            raise Exception('Failed to detect CSV DATETIME FORMAT')
+
+    print('   CSV guessed separator:', separator.replace('\t', '\\t'))
+    print('   CSV guessed date column name:', date_col_name)
+    print('   CSV guessed text column name:', text_col_name)
+    print('   CSV guessed datetime format:', datetime_format)
+    return (separator, date_col_name, text_col_name, datetime_format)

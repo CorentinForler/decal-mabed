@@ -2,6 +2,7 @@
 
 # std
 import argparse
+from mabed.profiler import profile
 from textwrap import dedent
 
 # mabed
@@ -21,8 +22,11 @@ def parse_arguments():
                    help='Input csv file')
     p.add_argument('k', metavar='top_k_events', type=int,
                    help='Number of top events to detect')
-    p.add_argument('--o', metavar='output', type=str,
-                   help='Output pickle file', default=None)
+
+    p.add_argument('-o', '--output', metavar='output', type=str,
+                   help='Output pickle file', default='output.pickle')
+    p.add_argument('-C', '--dont-use-cache', action='store_true',
+                   help='Do NOT use a cache (used to improve computation speed on consecutive runs)')
 
     # Corpus argument group
     c = p.add_argument_group('Corpus discretization')
@@ -30,24 +34,21 @@ def parse_arguments():
     # Corpus: Initialization
     c.add_argument('--sw', metavar='stopwords', type=str,
                    help='Stop-word list', default='stopwords/twitter_en.txt')
-    c.add_argument('--sep', metavar='csv_separator', type=str,
-                   help='CSV separator', default='\t')
+    # c.add_argument('--sep', metavar='csv_separator', type=str,
+    #                help='CSV separator', default='\t')
     c.add_argument('--maf', metavar='min_absolute_frequency', type=int,
                    help='Minimum absolute word frequency, default to 10', default=10)
     c.add_argument('--mrf', metavar='max_relative_frequency', type=float,
                    help='Maximum absolute word frequency, default to 0.4', default=0.4)
 
     # Corpus: Discretization
-    c.add_argument('--keep-corpus', action='store_true',
-                   help='Keep corpus data between runs and allow skipping the discretization step if possible')
-
     c.add_argument('--tsl', metavar='time_slice_length', type=int,
-                   help='Time-slice length, default to 30 (minutes)', default=30)
+                   help='Time-slice length, default to 1440 minutes (24 hours)', default=24*60)
 
     # MABED argument group
     m = p.add_argument_group('Event detection')
     m.add_argument('--p', metavar='p', type=int,
-                   help='Number of candidate words per event, default to 10', default=10)
+                   help='Number of candidate words per event, default to 5', default=5)
     m.add_argument('--t', metavar='theta', type=float,
                    help='Theta, default to 0.6', default=0.6)
     m.add_argument('--s', metavar='sigma', type=float,
@@ -63,7 +64,6 @@ def main():
     input_path = args.i
     top_k_events = args.k
     stopwords = args.sw
-    csv_separator = args.sep
     output_path = args.o
     min_absolute_frequency = args.maf
     max_relative_frequency = args.mrf
@@ -71,7 +71,10 @@ def main():
     p_candidates = args. p
     theta = args.t
     sigma = args.s
-    keep_corpus = args.keep_corpus
+
+    if args.dont_use_cache:
+        global GLOBAL_DISABLE_CACHE
+        GLOBAL_DISABLE_CACHE = True
 
     print(dedent(f'''
     Parameters:
@@ -95,8 +98,7 @@ def main():
             input_path,
             stopwords,
             min_absolute_frequency,
-            max_relative_frequency,
-            csv_separator)
+            max_relative_frequency)
 
     print()
     print('- ' * 10)
@@ -105,11 +107,7 @@ def main():
     print('Partitioning tweets into %d-minute time-slices...' %
           time_slice_length)
     with utils.timer('Partitioning done'):
-        if keep_corpus:
-            my_corpus.import_discretized(
-                'discretized.pickle', time_slice_length)
-        else:
-            my_corpus.discretize(time_slice_length)
+        my_corpus.discretize(time_slice_length)
 
     print()
     print('- ' * 10)
@@ -141,4 +139,5 @@ def main():
 #     stats.dump_stats("/Users/cogk/Desktop/profile.prof")
 
 if __name__ == '__main__':
+    # with profile():
     main()

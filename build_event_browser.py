@@ -31,7 +31,7 @@ def index():
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description='Build event browser')
     p.add_argument('i', metavar='input', type=str, help='Input pickle file')
-    p.add_argument('--o', metavar='output', type=str, help='Output html directory', default=None)
+    p.add_argument('-o', '--html-output', metavar='html-output', type=str, help='Output html directory', default=None)
     args = p.parse_args()
 
     print('Loading events from %s...' % args.i)

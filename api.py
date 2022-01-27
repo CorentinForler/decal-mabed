@@ -2,9 +2,10 @@
 Simple Flask API server returning JSON data
 """
 
+from email.policy import default
 import os
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
 
 import mabed.utils as utils
@@ -18,45 +19,21 @@ app = Flask(__name__, static_folder='browser/static',
 CORS(app)
 
 
-def get_default_params():
-    return {
-        # BE CAREFUL, those variables
-        # can be used to retrieve files
-        # like the /etc/shadow file ...
-
-        'input_path': 'stock_article.csv',
-        # 'input_path': 'stock_article_20000.csv',
-        'stopwords': 'customStopWords.txt',
-        'csv_separator': '\t',
-
-        'min_absolute_frequency': 10,
-        'max_relative_frequency': 0.4,
-        'time_slice_length': 24*60,
-        'keep_corpus': False,
-    }
-
-
 def init_mabed(
-    input_path='stock_article_20000.csv',
-    stopwords='customStopWords.txt',
-    csv_separator='\t',
-    min_absolute_frequency=10,
-    max_relative_frequency=0.4,
-    time_slice_length=24*60,
-    keep_corpus=False,
+    *,
+    input_path,
+    stopwords,
+    min_absolute_frequency,
+    max_relative_frequency,
+    time_slice_length,
 ):
     my_corpus = Corpus(
         input_path,
         stopwords,
         min_absolute_frequency,
-        max_relative_frequency,
-        csv_separator)
+        max_relative_frequency)
 
-    if keep_corpus:
-        # my_corpus.import_discretized('discretized.pickle', time_slice_length)
-        pass
-    else:
-        my_corpus.discretize(time_slice_length)
+    my_corpus.discretize(time_slice_length)
 
     mabed = MABED(my_corpus)
     return mabed
@@ -108,6 +85,10 @@ def missing_param(param):
 @app.route('/api/events.json', methods=['GET'])
 def events_GET():
     # Retrieve GET parameters
+    path = request.args.get('path', default='stock_article.csv', type=str)
+    stopwords = request.args.get(
+        'stopwords', default='stopwords/twitter_en.txt', type=str)
+
     maf = request.args.get('maf', default=10, type=int)
     mrf = request.args.get('mrf', default=0.4, type=float)
 
@@ -124,11 +105,13 @@ def events_GET():
     # Load the model
     print('Loading MABED...')
     with utils.timer('MABED loaded'):
-        params = get_default_params()
+        params = {}
 
         params['min_absolute_frequency'] = maf
         params['max_relative_frequency'] = mrf
         params['time_slice_length'] = tsl
+        params['input_path'] = path
+        params['stopwords'] = stopwords
 
         mabed = get_mabed(**params)
 
@@ -142,9 +125,14 @@ def events_GET():
     return jsonify(events)
 
 
+# @app.route('/')
+# def index():
+#     return send_from_directory('html', 'index.html')
+
+
 @app.route('/')
 def index():
-    return send_from_directory('html', 'index.html')
+    return render_template('empty.html')
 
 
 if __name__ == '__main__':

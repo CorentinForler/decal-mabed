@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" type="text/css">
+        <link href="{{ url_for('static', filename='css/nv.d3.css') }}" rel="stylesheet" type="text/css">
+        <script src="{{ url_for('static', filename='js/d3.min.js') }}" charset="utf-8"></script>
+        <script src="{{ url_for('static', filename='js/nv.d3.min.js') }}"></script>
+        <title>MABED: Mention-anomaly-based Event Detection and Tracking in Twitter</title>
+    </head>
+
+    <body>
+        <header id="header">
+            <h1>Mention-anomaly-based Event Detection and Tracking in Twitter</h1>
+        </header>
+        <main class="main-content">
+            <svg id="chart1" style="height: 700px;"></svg>
+            <svg id="chart-style-lines" style="height: 400px;"></svg>
+            <svg id="chart-style-lines-mirror" style="height: 400px;"></svg>
+        </main>
+    </body>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        const event_impact = []
+        init(event_impact)
+    </script>
+
+</html>

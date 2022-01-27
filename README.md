@@ -1,8 +1,57 @@
-# PhD-Track Event Visualisation
+# Event Visualisation w/ MABED (PhD-Track)
 
-## This is a fork of [AdrienGuille/pyMABED](https://github.com/AdrienGuille/pyMABED)
+This project is a fork of [AdrienGuille/pyMABED](https://github.com/AdrienGuille/pyMABED)
 
-## Features I am working on
+## About
+
+pyMABED is a Python 3 implementation of [MABED](#mabed), distributed under the terms of the MIT licence. If you make use of this software in your research, please cite one the [references](#references) below.
+
+### MABED
+
+MABED (Mention-Anomaly-Based Event Detection) is a statistical method for automatically detecting significant events that most interest Twitter users from the stream of tweets they publish. In contrast with existing methods, it doesn't only focus on the textual content of tweets but also leverages the frequency of social interactions that occur between users (i.e. mentions). MABED also differs from the literature in that it dynamically estimates the period of time during which each event is discussed rather than assuming a predefined fixed duration for all events.
+
+## Installation
+
+```sh
+pip install -r requirements.txt
+```
+
+## Usage
+
+Provided a set of tweets, pyMABED can (i) perform event detection and (ii) generate a visualization of the detected events.
+
+### Detecting events
+
+Use the `detect_events.py` script, which has two mandatory (positional) arguments:
+
+-   the path to the csv file containing the tweets,formatted as follows: a tweet per line, with at least a field named 'date' (%Y-%m-%d %H:%M:%S) and a field name 'text' (content of the tweet) ; any other field is ignored
+-   the number of top events to detect (e.g. 10)
+
+Run the following command to see all the available options:
+
+```sh
+python3 detect_events.py --help
+```
+
+By default, `detect_events.py` prints the descriptions of the detected events in the terminal, and creates a file named `output.pickle` containing the data needed to generate the visualization (use the `--output` argument to change the output file path).
+
+Corpus discretization is single-threaded but event detection is multi-threaded. Multiple instances can be run at the same time, but be sure that the parameters are different in order to prevent cache conflicts.
+
+If your data includes emoji or other multibyte characters, be sure to remove them beforehand or use the correct encodings for the csv.
+
+### Visualizing events
+
+Use the `build_event_browser.py` script, which has one mandatory (positional) argument:
+
+-   the path to the file that describes the events to visualize (i.e. the path that was passed to `detect_events.py` with the --output argument)
+
+Run the following command to see all the available options:
+
+```sh
+python3 build_event_browser.py --help
+```
+
+By default, `build_event_browser.py` starts a local Web server accessible at http://localhost:5000/. If a path is passed with the --html-output argument, the visualization is saved on disk in HTML format.
 
 ### New chart styles
 
@@ -10,82 +59,11 @@
 ![style-2](img/style-2.jpg)
 ![style-3](img/style-3.jpg)
 
-## About
-
-pyMABED is a Python 3 implementation of [MABED](#mabed), distributed under the terms of the MIT licence. If you make use of this software in your research, please cite one the [references](#references) below.
-
 ## Contributors
-
-Contributors:
 
 -   Adrien Guille
 -   Nicolas Dugué
-
-## MABED
-
-MABED (Mention-Anomaly-Based Event Detection) is a statistical method for automatically detecting significant events that most interest Twitter users from the stream of tweets they publish. In contrast with existing methods, it doesn't only focus on the textual content of tweets but also leverages the frequency of social interactions that occur between users (i.e. mentions). MABED also differs from the literature in that it dynamically estimates the period of time during which each event is discussed rather than assuming a predefined fixed duration for all events.
-
-## Requirements
-
-pyMABED requires scipy, numpy and networkx; these scientific libraries come pre-installed with the [Anaconda Python](https://anaconda.org) distribution. You can also install them manually via [pip](https://pypi.python.org):
-
-```sh
-pip install scipy
-pip install numpy
-pip install networkx
-```
-
-## Usage
-
-Provided a set of tweets, pyMABED can (i) perform event detection and (ii) generate a visualization of the detected events.
-
-### Detect events
-
-`detect_events.py` has two mandatory (positional) arguments:
-
--   the path to the csv file containing the tweets,formatted as follows: a tweet per line, with at least a field named 'date' (%Y-%m-%d %H:%M:%S) and a field name 'text' (content of the tweet) ; any other field is ignored
--   the number of top events to detect (e.g. 10)
-
-optional arguments:
-
-```sh
--h, --help            show the help message and exit
---sw stopwords        Stop-word list
---o output            Output pickle file
---maf min_absolute_frequency
-                      Minimum absolute word frequency, default to 10
---mrf max_relative_frequency
-                      Maximum absolute word frequency, default to 0.4
---tsl time_slice_length
-                      Time-slice length, default to 30 (minutes)
---p p                 Number of candidate words per event, default to 10
---t theta             Theta, default to 0.6
---s sigma             Sigma, default to 0.6
---sep separator       Separator, default to `\t` (tab)
-```
-
-By default, `detect_events.py` prints the descriptions of the detected events in the terminal. In order to generate the visualization, you have to run `detect_events.py` with the --o argument and specify a path.
-
-Event detection is not multithreaded. Multiple instances on different datasets must be run from own their working directories each, because temporary files are kept in a `corpus` directory inside the cwd. If your data includes emoji or other multibyte characters, be sure to remove them beforehand or use the correct encodings for the csv.
-
-### Visualize events
-
-`build_event_browser.py` has one mandatory (positional) argument:
-
--   the path to the file that describes the events to visualize (i.e. the path that was passed to `detect_events.py` with the --o argument)
-
-optional arguments:
-
-```sh
-  -h, --help  show this help message and exit
-  --o output  Output html directory
-```
-
-By default, `build_event_browser.py` starts a local Web server accessible at http://localhost:2016/. If a path is passed with the --o argument, the visualization is saved on disk in html format.
-
-## MABED
-
-MABED (Mention-Anomaly-Based Event Detection) is a statistical method for automatically detecting significant events that most interest Twitter users from the stream of tweets they publish. In contrast with existing methods, it doesn't only focus on the textual content of tweets but also leverages the frequency of social interactions that occur between users (i.e. mentions). MABED also differs from the literature in that it dynamically estimates the period of time during which each event is discussed rather than assuming a predefined fixed duration for all events.
+-   Corentin F [@cogk](https://github.com/cogk)
 
 ## References
 
