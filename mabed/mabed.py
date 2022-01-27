@@ -6,6 +6,7 @@ from multiprocessing import Pool
 # math
 import networkx as nx
 import numpy as np
+from mabed.mabed_cache import CacheLevel, mabed_cached
 import mabed.stats as st
 
 __authors__ = "Adrien Guille, Nicolas Dugué"
@@ -32,6 +33,7 @@ class MABED:
         basic_events = self.phase1()
         return self.phase2(basic_events)
 
+    @mabed_cached(CacheLevel.L3_DISCRETE, 'mabed_phase_1')
     def phase1(self):
         print('Phase 1...')
         basic_events = []
@@ -69,6 +71,13 @@ class MABED:
         return basic_event
 
     def phase2(self, basic_events):
+        o = self.compute_phase2(basic_events)
+        self.event_graph = o['event_graph']
+        self.redundancy_graph = o['redundancy_graph']
+        self.events = o['events']
+
+    @mabed_cached(CacheLevel.L4_MABED, 'mabed_phase_2')
+    def compute_phase2(self, basic_events):
         print('Phase 2...')
 
         # sort the events detected during phase 1 according to their magnitude of impact
@@ -110,6 +119,12 @@ class MABED:
             i += 1
         # merge redundant events and save the result
         self.events = self.merge_redundant_events(refined_events)
+
+        return {
+            'event_graph': self.event_graph,
+            'redundancy_graph': self.redundancy_graph,
+            'events': self.events,
+        }
 
     def anomaly(self, time_slice, observation, total_mention_freq):
         # compute the expected frequency of the given word at this time-slice

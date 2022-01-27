@@ -428,14 +428,14 @@ function init(event_impact) {
       .spinner-container[hidden] { opacity: 0; visibility: hidden; }
     </style>
     <div>
-      TODO
-      <label>T = <input name="tsl" type="number" value="10" step=1 min=1 /> (time slice count)</label>
-      ...
+      <label>T = <input name="tsl" type="number" value="1440" step=1 min=1 /> (time slice length)</label>
+      <label>maf = <input name="maf" type="number" value="10" step=1 min=1 /> (min. abs. freq.)</label>
+      <label>mrf = <input name="mrf" type="number" value="0.4" step=0.1 min=0 max=1 /> (max. rel. freq.)</label>
 
       <label>K = <input name="k" type="number" value="10" step=1 min=1 /> (number of top events to detect)</label>
       <label>P = <input name="p" type="number" value="10" step=1 min=1 /> (number of candidate words per event)</label>
-      <label>θ = <input name="t" type="number" value="0.6" step=0.1 /></label>
-      <label>σ = <input name="s" type="number" value="0.6" step=0.1 /></label>
+      <label>θ = <input name="t" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
+      <label>σ = <input name="s" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
 
       <input type="submit" value="Submit" />
 

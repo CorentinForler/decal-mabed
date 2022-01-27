@@ -24,14 +24,15 @@ def get_default_params():
         # can be used to retrieve files
         # like the /etc/shadow file ...
 
-        'input_path': 'stock_article_20000.csv',
+        'input_path': 'stock_article.csv',
+        # 'input_path': 'stock_article_20000.csv',
         'stopwords': 'customStopWords.txt',
         'csv_separator': '\t',
 
         'min_absolute_frequency': 10,
         'max_relative_frequency': 0.4,
         'time_slice_length': 24*60,
-        'keep_corpus': True,
+        'keep_corpus': False,
     }
 
 
@@ -42,7 +43,7 @@ def init_mabed(
     min_absolute_frequency=10,
     max_relative_frequency=0.4,
     time_slice_length=24*60,
-    keep_corpus=True,
+    keep_corpus=False,
 ):
     my_corpus = Corpus(
         input_path,
@@ -52,8 +53,8 @@ def init_mabed(
         csv_separator)
 
     if keep_corpus:
-        my_corpus.import_discretized(
-            'discretized.pickle', time_slice_length)
+        # my_corpus.import_discretized('discretized.pickle', time_slice_length)
+        pass
     else:
         my_corpus.discretize(time_slice_length)
 
@@ -107,6 +108,11 @@ def missing_param(param):
 @app.route('/api/events.json', methods=['GET'])
 def events_GET():
     # Retrieve GET parameters
+    maf = request.args.get('maf', default=10, type=int)
+    mrf = request.args.get('mrf', default=0.4, type=float)
+
+    tsl = request.args.get('tsl', default=24*60, type=int)
+
     k = request.args.get('k', type=int)
     p = request.args.get('p', default=10, type=float)
     theta = request.args.get('t', default=0.6, type=float)
@@ -119,6 +125,11 @@ def events_GET():
     print('Loading MABED...')
     with utils.timer('MABED loaded'):
         params = get_default_params()
+
+        params['min_absolute_frequency'] = maf
+        params['max_relative_frequency'] = mrf
+        params['time_slice_length'] = tsl
+
         mabed = get_mabed(**params)
 
     print('Running MABED...')

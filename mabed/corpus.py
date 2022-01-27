@@ -12,6 +12,7 @@ import operator
 import numpy as np
 # from scipy.sparse import *
 from scipy.sparse.dok import dok_matrix
+from mabed.mabed_cache import CacheLevel, cached_getpath, cached_timeslice_append, cached_timeslice_init, cached_timeslice_read, cached_timeslices, corpus_cached
 
 # mabed
 import mabed.utils as utils
@@ -41,21 +42,24 @@ class Corpus:
         self.time_slice_length = None
 
         self.start_date = '3000-01-01 00:00:00'[:DATETIME_FORMAT_LENGTH]
-
         self.end_date = '1970-01-01 00:00:00'[:DATETIME_FORMAT_LENGTH]
-
         self.min_date = '1970-01-01 00:00:00'[:DATETIME_FORMAT_LENGTH]
-        # self.min_date = datetime.strptime(self.min_date, DATETIME_FORMAT)
 
         # load stop-words
         self.stopwords = utils.load_stopwords(stopwords_file_path)
 
-        vocab_vector = self.compute_vocabulary_vector()
+        vocab_vector, size, date_start, date_end = self.compute_vocabulary_vector()
+
+        assert(size > 0)
+        assert(date_start <= date_end)
+        assert(len(vocab_vector) > 0)
+
+        self.size = size
+        self.start_date = datetime.strptime(date_start, DATETIME_FORMAT)
+        self.end_date = datetime.strptime(date_end, DATETIME_FORMAT)
+
         if save_voc:
             utils.write_vocabulary(vocab_vector)
-
-        self.start_date = datetime.strptime(self.start_date, DATETIME_FORMAT)
-        self.end_date = datetime.strptime(self.end_date, DATETIME_FORMAT)
 
         # construct the vocabulary map
         self.vocabulary = self.compute_filtered_vocabulary_map(
@@ -66,6 +70,7 @@ class Corpus:
         print('   Corpus: %i tweets, spanning from %s to %s' %
               (self.size, self.start_date, self.end_date))
 
+    @corpus_cached(CacheLevel.L2_VOCAB, "vocab_map")
     def compute_filtered_vocabulary_map(self, min_absolute_freq, max_relative_freq, vocab_vector):
         vocab_map = {}
         word_index = 0
@@ -75,18 +80,21 @@ class Corpus:
                 word_index += 1
         return vocab_map
 
+    @corpus_cached(CacheLevel.L1_DATASET, "vocab_vector")
     def compute_vocabulary_vector(self):
-        # identify features
+        date_start = '3000-01-01 00:00:00'[:DATETIME_FORMAT_LENGTH]
+        date_end = '1970-01-01 00:00:00'[:DATETIME_FORMAT_LENGTH]
+        size = 0
         word_frequency = {}
-        for (date, text) in self.source_csv_iterator():
-            self.size += 1
 
+        for (date, text) in self.source_csv_iterator():
+            size += 1
             words = self.tokenize(text)
 
-            if date > self.end_date:
-                self.end_date = date
-            elif date < self.start_date:
-                self.start_date = date
+            if date > date_end:
+                date_end = date
+            elif date < date_start:
+                date_start = date
 
             # update word frequency
             for word in words:
@@ -99,8 +107,7 @@ class Corpus:
         # sort words w.r.t frequency
         vocabulary = list(word_frequency.items())
         vocabulary.sort(key=operator.itemgetter(1), reverse=True)
-
-        return vocabulary
+        return vocabulary, size, date_start, date_end
 
     def source_csv_iterator(self):
         with open(self.source_file_path, 'r', encoding='utf8') as input_file:
@@ -120,85 +127,127 @@ class Corpus:
                     print('skipping line:', line)
                     continue  # ignore
 
+                if not text:
+                    continue
+
                 yield date, text
 
-    def import_discretized(self, file_path, time_slice_length):
-        if os.path.exists(file_path):
-            print(f'Importing previous corpus from {file_path} and corpus/')
-            try:
-                data = utils.load_pickle(file_path)
-                self.time_slice_length = data['time_slice_length']
-                self.time_slice_count = data['time_slice_count']
-                self.tweet_count = data['tweet_count']
-                self.global_freq = data['global_freq']
-                self.mention_freq = data['mention_freq']
+    def tokenized_iterator(self):
+        path = cached_getpath(self, CacheLevel.L1_DATASET, "tokenized", ".csv")
 
-                if data['source_file_path'] != self.source_file_path:
-                    raise Exception('Warning: .source_file_path mismatch')
-                if data['size'] != self.size:
-                    raise Exception('Warning: .size mismatch')
-                if data['start_date'] != self.start_date:
-                    raise Exception('Warning: .start_date mismatch')
-                if data['end_date'] != self.end_date:
-                    raise Exception('Warning: .end_date mismatch')
-                if data['min_date'] != self.min_date:
-                    raise Exception('Warning: .min_date mismatch')
-
-                if time_slice_length != self.time_slice_length:
-                    print('Warning: stored corpus has different time_slice_length')
-                    raise Exception(
-                        f'Expected: time_slice_length = {time_slice_length}, Got: {self.time_slice_length}')
-
-                for i in range(self.time_slice_count):
-                    if not utils.time_slice_exists(i):
-                        raise Exception(f'Missing corpus time slice file: {i}')
-
-                return True
-
-            except Exception as e:
-                print('Error while importing discretized corpus')
-                print(e)
-
-        print('Doing discretization now')
-        self.discretize(time_slice_length)
-        self.save_discretized(file_path)
-        return False
-
-    def save_discretized(self, file_path):
-        data = utils.pick_fields(self, [
-            'time_slice_count', 'tweet_count', 'global_freq', 'mention_freq', 'time_slice_length',
-            'source_file_path', 'size', 'start_date', 'end_date', 'min_date'])
-        utils.save_pickle(data, file_path)
-
-    def discretize(self, time_slice_length):
         # import spacy
-
-        self.time_slice_length = time_slice_length
-
         # nlp = spacy.load("en_core_web_sm")
+
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf8') as input_file:
+                csv_reader = csv.reader(input_file, delimiter='\t')
+                for line in csv_reader:
+                    # date, mention, text, tokens
+                    yield line[0], line[1], line[2], line[3:]
+        else:
+            with open(path, 'w', encoding='utf8') as output_file:
+                csv_writer = csv.writer(output_file, delimiter='\t')
+                for (date, text) in self.source_csv_iterator():
+
+                    # tokenize the tweet and update word frequency
+                    words = self.tokenize(text)
+
+                    # mention = '@' in text
+                    mention = 'Apple' in text
+                    # nlp_text = nlp(text)
+                    # orgs = filter(lambda t: t.ent_type_ ==
+                    #               'ORG' and len(t.text) > 1, nlp_text)
+                    # has_orgs = any(orgs) and any(orgs)
+                    # mention = has_orgs
+
+                    csv_writer.writerow([date, mention, text, *words])
+                    yield (date, mention, text, words)
+
+    # def import_discretized(self, file_path, time_slice_length):
+    #     if os.path.exists(file_path):
+    #         print(f'Importing previous corpus from {file_path} and corpus/')
+    #         try:
+    #             data = utils.load_pickle(file_path)
+    #             self.time_slice_length = data['time_slice_length']
+    #             self.time_slice_count = data['time_slice_count']
+    #             self.tweet_count = data['tweet_count']
+    #             self.global_freq = data['global_freq']
+    #             self.mention_freq = data['mention_freq']
+
+    #             if data['source_file_path'] != self.source_file_path:
+    #                 raise Exception('Warning: .source_file_path mismatch')
+    #             if data['size'] != self.size:
+    #                 raise Exception('Warning: .size mismatch')
+    #             if data['start_date'] != self.start_date:
+    #                 raise Exception('Warning: .start_date mismatch')
+    #             if data['end_date'] != self.end_date:
+    #                 raise Exception('Warning: .end_date mismatch')
+    #             if data['min_date'] != self.min_date:
+    #                 raise Exception('Warning: .min_date mismatch')
+
+    #             if time_slice_length != self.time_slice_length:
+    #                 print('Warning: stored corpus has different time_slice_length')
+    #                 raise Exception(
+    #                     f'Expected: time_slice_length = {time_slice_length}, Got: {self.time_slice_length}')
+
+    #             for i in range(self.time_slice_count):
+    #                 if not utils.time_slice_exists(i):
+    #                     raise Exception(f'Missing corpus time slice file: {i}')
+
+    #             return True
+
+    #         except Exception as e:
+    #             print('Error while importing discretized corpus')
+    #             print(e)
+
+    #     print('Doing discretization now')
+    #     self.discretize(time_slice_length)
+    #     self.save_discretized(file_path)
+    #     return False
+
+    # def save_discretized(self, file_path):
+    #     data = utils.pick_fields(self, [
+    #         'time_slice_count', 'tweet_count', 'global_freq', 'mention_freq', 'time_slice_length',
+    #         'source_file_path', 'size', 'start_date', 'end_date', 'min_date'])
+    #     utils.save_pickle(data, file_path)
+
+    def compute_tokenized_corpus(self):
+        self.tokenized_corpus = []
+        for (date, text) in self.source_csv_iterator():
+            self.tokenized_corpus.append((date, self.tokenize(text)))
+
+    @corpus_cached(CacheLevel.L3_DISCRETE, "discretized_corpus")
+    def compute_discretized_corpus(self):
+        time_slice_length = self.time_slice_length
+        start_date, end_date = self.start_date, self.end_date
+        vocab = self.vocabulary
 
         # clean the data directory
         if os.path.exists('corpus'):
             shutil.rmtree('corpus')
         os.makedirs('corpus')
 
+        def get_time_slice_index(date):
+            time_delta = (date - start_date)
+            time_delta = time_delta.total_seconds() / 60
+            return int(time_delta // time_slice_length)
+
         # compute the total number of time-slices
-        time_delta = (self.end_date - self.start_date)
-        time_delta = time_delta.total_seconds()/60
-        self.time_slice_count = int(time_delta // self.time_slice_length) + 1
-        self.tweet_count = np.zeros(self.time_slice_count)
-        print(' Number of time-slices: %d' % self.time_slice_count)
+        time_slice_count = get_time_slice_index(end_date) + 1
+        tweet_count = np.zeros(time_slice_count)
+        print(' Number of time-slices: %d' % time_slice_count)
         print()
 
         # create empty files
-        for time_slice in range(self.time_slice_count):
-            utils.init_time_slice(time_slice)
+        get_slice = cached_timeslices(self, time_slice_count)
+        # for time_slice in range(time_slice_count):
+        #     slice_files[time_slice] = cached_timeslice_init(self, time_slice)
 
         # compute word frequency
-        self.global_freq = dok_matrix(
-            (len(self.vocabulary), self.time_slice_count), dtype=np.uint32)
-        self.mention_freq = dok_matrix(
-            (len(self.vocabulary), self.time_slice_count), dtype=np.uint32)
+        global_freq = dok_matrix(
+            (len(vocab), time_slice_count), dtype=np.uint32)
+        mention_freq = dok_matrix(
+            (len(vocab), time_slice_count), dtype=np.uint32)
 
         def print_timing(my_index, start_time):
             now = datetime.now()
@@ -227,49 +276,58 @@ class Corpus:
             f'{0:.0f}s'.center(15),
             f'ETA: hh:mm:ss')
 
-        for (date, text) in self.source_csv_iterator():
+        # profile
+        import cProfile
+        import pstats
+        import io
+        pr = cProfile.Profile()
+        pr.enable()
+
+        for (date, mention, text, words) in self.tokenized_iterator():
             my_index += 1
             if my_index % interval == 0:
                 print_timing(my_index, start_time)
 
-            # tokenize the tweet and update word frequency
-            words = self.tokenize(text)
-
-            # mention = '@' in text
-            mention = 'Apple' in text
-
-            # nlp_text = nlp(text)
-
-            # propnouns = filter(lambda t: t.pos_ == 'PROPN', nlp_text)
-            # has_propnouns = any(propnouns)
-
-            # orgs = filter(lambda t: t.ent_type_ ==
-            #               'ORG' and len(t.text) > 1, nlp_text)
-            # # At least 2 organizations mentionned
-            # has_orgs = any(orgs) and any(orgs)
-
-            # mention = has_orgs
-
-            # if mention:
-            #     print(text)
-
             tweet_date = datetime.strptime(date, DATETIME_FORMAT)
-            time_delta = (tweet_date - self.start_date)
-            time_delta = time_delta.total_seconds() / 60
-            time_slice = int(time_delta / self.time_slice_length)
-            self.tweet_count[time_slice] += 1
+            time_slice = get_time_slice_index(tweet_date)
+            tweet_count[time_slice] += 1
 
             for word in set(words):
-                word_id = self.vocabulary.get(word)
+                word_id = vocab.get(word)
                 if word_id is not None:
-                    self.global_freq[word_id, time_slice] += 1
+                    global_freq[word_id, time_slice] += 1
                     if mention:
-                        self.mention_freq[word_id, time_slice] += 1
+                        mention_freq[word_id, time_slice] += 1
 
-            utils.append_to_time_slice(time_slice, text)
+            # cached_timeslice_append(self, time_slice, text)
+            # slice_files[time_slice].write(text + '\n')
+            get_slice(time_slice).write(text + '\n')
 
-        self.global_freq = self.global_freq.tocsr()
-        self.mention_freq = self.mention_freq.tocsr()
+        # stop profiling
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+
+        global_freq = global_freq.tocsr()
+        mention_freq = mention_freq.tocsr()
+
+        return {
+            'time_slice_count': time_slice_count,
+            'tweet_count': tweet_count,
+            'global_freq': global_freq,
+            'mention_freq': mention_freq,
+        }
+
+    def discretize(self, time_slice_length):
+        self.time_slice_length = time_slice_length
+        o = self.compute_discretized_corpus()
+        self.time_slice_count = o['time_slice_count']
+        self.tweet_count = o['tweet_count']
+        self.global_freq = o['global_freq']
+        self.mention_freq = o['mention_freq']
 
     def to_date(self, time_slice):
         a_date = self.start_date + timedelta(
@@ -296,7 +354,7 @@ class Corpus:
 
         word_frequency = {}
         for i in range(slice_start, slice_end + 1):
-            for tweet_text in utils.read_time_slice(i):
+            for tweet_text in cached_timeslice_read(self, i):
                 for word in words_of(tweet_text, main_word):
                     # increment word frequency
                     if word not in word_frequency:
