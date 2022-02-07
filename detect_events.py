@@ -2,7 +2,6 @@
 
 # std
 import argparse
-from mabed.profiler import profile
 from textwrap import dedent
 
 # mabed

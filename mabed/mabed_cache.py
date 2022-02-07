@@ -217,7 +217,7 @@ def cached_timeslice_read(corpus: 'Corpus', index: int):
 
 
 class TimeSlicesCircularBuffer():
-    def __init__(self, max_size: Union[str, int], base_path: str):
+    def __init__(self, max_size: int, base_path: str):
         self.max_size = max_size
         self.base_path = base_path
         self.files = {}
@@ -258,7 +258,7 @@ def cached_timeslices(corpus: 'Corpus', slices_count: int):
         with open(file_path, 'w', encoding='utf8') as dummy_file:
             dummy_file.write('')
 
-    circularbuffer = TimeSlicesCircularBuffer(slices_count, dir_path)
+    circularbuffer = TimeSlicesCircularBuffer(512, dir_path)
 
     def get(index: int):
         return circularbuffer.get(index)
