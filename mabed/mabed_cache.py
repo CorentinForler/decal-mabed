@@ -34,7 +34,7 @@ def _cached_dump(data, path):
             with open(path, "wb") as file:
                 marshal.dump(data, file)
         elif path.endswith(JSON_EXTENSION):
-            with open(path, "w") as file:
+            with open(path, "w", encoding="utf-8") as file:
                 json.dump(data, file,
                           ensure_ascii=False,
                           check_circular=False,

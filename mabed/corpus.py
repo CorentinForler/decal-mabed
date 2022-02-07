@@ -97,7 +97,7 @@ class Corpus:
         date_start = '3000-01-01 00:00:00'[:self.csv_datetime_format_length]
         date_end = '1970-01-01 00:00:00'[:self.csv_datetime_format_length]
         size = 0
-        word_frequency = {}
+        word_frequency = {}  # TODO: use Counter
 
         it = self.source_csv_iterator()
         it = tqdm(it, desc="computing vocabulary")
@@ -151,8 +151,8 @@ class Corpus:
     def tokenized_iterator(self):
         path = cached_getpath(self, CacheLevel.L1_DATASET, "tokenized", ".csv")
 
-        # import spacy
-        # nlp = spacy.load("en_core_web_sm")
+        import spacy
+        nlp = spacy.load("en_core_web_sm")
 
         if os.path.exists(path):
             with open(path, 'r', encoding='utf8') as input_file:
@@ -169,12 +169,12 @@ class Corpus:
                     words = self.tokenize(text)
 
                     # mention = '@' in text
-                    mention = 'Apple' in text
-                    # nlp_text = nlp(text)
-                    # orgs = filter(lambda t: t.ent_type_ ==
-                    #               'ORG' and len(t.text) > 1, nlp_text)
-                    # has_orgs = any(orgs) and any(orgs)
-                    # mention = has_orgs
+                    # mention = 'Apple' in text
+                    nlp_text = nlp(text)
+                    orgs = filter(lambda t: t.ent_type_ ==
+                                  'ORG' and len(t.text) > 1, nlp_text)
+                    has_orgs = any(orgs) and any(orgs)
+                    mention = has_orgs
 
                     csv_writer.writerow([date, mention, text, *words])
                     yield (date, mention, text, words)
@@ -219,7 +219,7 @@ class Corpus:
         mention_freq = dok_matrix(
             (len(vocab), time_slice_count), dtype=np.uint32)
 
-        print('Processing tweets...')
+        print('Processing documents...')
         print()
 
         it = self.tokenized_iterator()

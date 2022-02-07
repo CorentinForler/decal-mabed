@@ -44,7 +44,8 @@ class MABED:
         items = self.corpus.vocabulary.items()
         n = len(items)
 
-        pool = ThreadPool()
+        n_processors = os.cpu_count() or 1
+        pool = ThreadPool(n_processors)
 
         async_results = pool.imap_unordered(
             func=self.maximum_contiguous_subsequence_sum,
