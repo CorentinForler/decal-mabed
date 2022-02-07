@@ -134,9 +134,9 @@ function estimateTextBBox(text, attrs, styles) {
 }
 
 // make text pattern
-function textPatternFactory(defs, id, { text, fg, bg, strokeColor = 'none', angle = 0, lineHeight = 1.6 }) {
+function textPatternFactory(defs, id, { text, fg, bg, strokeColor = 'none', angle = 0, lineHeight = 1.6, fontSize = 15 }) {
   const textAttrs = {
-    'font-size': 15,
+    'font-size': fontSize,
     'font-family': 'sans-serif',
     // 'text-anchor': 'middle',
     // 'alignment-baseline': 'middle',
@@ -508,10 +508,10 @@ function update(event_impact, opts = {}) {
     nvAreas.each((nvArea) => {
       // console.log(nvArea)
       const index = nvArea.seriesIndex
-      const text = nvArea.key
+      const text = (nvArea.articles && nvArea.articles[0]) || nvArea.key
 
       // const id = index
-      const id = slugifyToId(text)
+      const id = slugifyToId(nvArea.key)
 
       // if nvArea.color is a color
       let bg
@@ -526,7 +526,7 @@ function update(event_impact, opts = {}) {
       const fgHover = bg.l > 0.5 ? bg.darker(1) : bg.brighter(1)
 
       textPatternFactory(defs, `pattern--${id}`, {
-        text, fg, bg, angle,
+        text, fg, bg, angle, fontSize: 10, lineHeight: 1.2, angle: 0,
       })
       // textPatternFactory(defs, `pattern-hover--${id}`, {
       //   text, bg, angle,
@@ -594,10 +594,17 @@ async function fetch_update(params) {
   }
 
   const data = await res.json()
-  const events_impact = data.map((event) => {
-    const key = event.term
+
+  console.log(data)
+
+  const event_impact = data.map((event) => {
+    // const key = event.term
+    let key = event.articles[0]
+    const i = key.toLowerCase().indexOf("(ap)")
+    if (i >= 0) { key = key.substring(i + 7).trim() }
+
     const values = event.impact.map((impact) => [+(new Date(impact.date)), impact.value])
-    return { key, values }
+    return { key, values, articles: event.articles }
   })
 
   // Auto-zoom
@@ -629,7 +636,7 @@ async function fetch_update(params) {
     zoom = [min_date, max_date]
   }
 
-  console.log({zoom})
+  // console.log({zoom})
 
-  update(events_impact, { zoom })
+  update(event_impact, { zoom })
 }

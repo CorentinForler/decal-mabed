@@ -4,6 +4,7 @@ Simple Flask API server returning JSON data
 
 from datetime import datetime
 from email.policy import default
+from operator import itemgetter
 import os
 
 from flask import Flask, request, jsonify, send_from_directory, render_template
@@ -106,8 +107,6 @@ def events_GET():
         'from_date', default="2019-01-01", type=str)
     filter_date_after = datetime.strptime(filter_date_after, '%Y-%m-%d')
 
-    print('\x1b[32m', filter_date_after, '\x1b[m')
-
     if k is None:
         return jsonify(missing_param('k')), 400
 
@@ -131,7 +130,20 @@ def events_GET():
 
     utils.save_pickle(mabed, mabed_pickle_path)
 
+    raw_events = mabed.events
     events = list(utils.iterate_events_as_dict(mabed))
+
+    articles = mabed.corpus.find_articles_for_events(raw_events)
+
+    for e, a in zip(events, articles):
+        prio_queue = a['articles']
+        articles = []
+        while not prio_queue.empty():
+            articles.append(prio_queue.get())
+        articles = sorted(articles, key=itemgetter(0), reverse=True)
+        articles = list(map(itemgetter(1), articles))
+        e['articles'] = articles
+
     return jsonify(events)
 
 

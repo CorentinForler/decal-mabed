@@ -1,6 +1,7 @@
 # coding: utf-8
 
 # std
+from queue import PriorityQueue
 import string
 from datetime import timedelta, datetime
 import csv
@@ -322,3 +323,54 @@ class Corpus:
         # TODO
         # # ??? return the cooccurring words even if there are less than p words
         # return top_cooccurring_words
+
+    def find_articles_for_events(self, raw_events, n_articles=5):
+        assert len(raw_events) > 0
+
+        def z(event):
+            words_to_count = set()
+            main_term = event[2]
+            main_components = main_term.split(', ')
+            words_to_count.update(main_components)
+
+            related_terms = event[3]
+            related_terms = map(lambda x: x[0], related_terms)
+            words_to_count.update(related_terms)
+
+            slice_start = event[1][0]
+            slice_end = event[1][1]  # inclusive
+
+            return {
+                'event': event,
+                'articles': PriorityQueue(maxsize=n_articles),
+                'slices': set(range(slice_start, slice_end + 1)),
+                'words': words_to_count,
+            }
+
+        xs = list(map(z, raw_events))
+
+        slices_to_inspect = set()
+        for x in xs:
+            slices_to_inspect.update(x['slices'])
+
+        for i in slices_to_inspect:
+            for tweet_text in cached_timeslice_read(self, i):
+                words = set(self.tokenize_iterator(tweet_text))
+
+                # tf-idf
+                for x in xs:
+                    if i in x['slices']:
+                        searched_words: set(str) = x['words']
+                        priority_queue: PriorityQueue = x['articles']
+                        score = len(words & searched_words)
+
+                        if score > 1:
+                            if priority_queue.full():
+                                old = priority_queue.get()
+                                if old[0] > score:
+                                    priority_queue.put(old)
+                                    continue
+
+                            priority_queue.put((score, tweet_text))
+
+        return xs

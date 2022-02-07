@@ -12,13 +12,17 @@ from mabed.mabed_cache import JSON_EXTENSION, PICKLE_EXTENSION, CacheLevel, mabe
 import mabed.stats as st
 from tqdm import tqdm
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from mabed.corpus import Corpus
+
 __authors__ = "Adrien Guille, Nicolas Dugué"
 __email__ = "adrien.guille@univ-lyon2.fr"
 
 
 class MABED:
 
-    def __init__(self, corpus):
+    def __init__(self, corpus: 'Corpus'):
         self.corpus = corpus
         self.event_graph = None
         self.redundancy_graph = None

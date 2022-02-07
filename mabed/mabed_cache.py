@@ -193,11 +193,8 @@ def mabed_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION)
 
 
 def cached_timeslice_path(corpus: 'Corpus', index: int):
-    dataset_hash = Hash.file(corpus.source_file_path)
-    vocab_hash = Hash.all(maf=corpus.min_absolute_freq,
-                          mrf=corpus.max_relative_freq)
-    corpus_hash = Hash.all(tsl=corpus.time_slice_length)
-    return f"{BASE_PATH}/{dataset_hash}/{vocab_hash}/{corpus_hash}/slices/{index}.txt"
+    return cached_getpath(corpus, CacheLevel.L3_DISCRETE,
+                          filename=f'slices/{index}', ext='.txt')
 
 
 # def cached_timeslice_init(corpus: 'Corpus', index: int):
