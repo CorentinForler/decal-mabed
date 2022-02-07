@@ -64,11 +64,11 @@ def main():
     input_path = args.i
     top_k_events = args.k
     stopwords = args.sw
-    output_path = args.o
+    output_path = args.output
     min_absolute_frequency = args.maf
     max_relative_frequency = args.mrf
     time_slice_length = args.tsl
-    p_candidates = args. p
+    p_candidates = args.p
     theta = args.t
     sigma = args.s
 
