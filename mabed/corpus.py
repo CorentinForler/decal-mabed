@@ -7,6 +7,7 @@ import csv
 import os
 import shutil
 import operator
+from typing import Counter
 from tqdm import tqdm
 
 # math
@@ -97,14 +98,14 @@ class Corpus:
         date_start = '3000-01-01 00:00:00'[:self.csv_datetime_format_length]
         date_end = '1970-01-01 00:00:00'[:self.csv_datetime_format_length]
         size = 0
-        word_frequency = {}  # TODO: use Counter
+        word_frequency = Counter()  # TODO: use Counter
 
         it = self.source_csv_iterator()
         it = tqdm(it, desc="computing vocabulary")
 
         for (date, text) in it:
             size += 1
-            words = self.tokenize(text)
+            words = self.tokenize_iterator(text)
 
             if date > date_end:
                 date_end = date
@@ -115,14 +116,10 @@ class Corpus:
             # update word frequency
             for word in words:
                 if word not in self.stopwords:
-                    if len(word) > 1:
-                        if word not in word_frequency:
-                            word_frequency[word] = 0
-                        word_frequency[word] += 1
+                    word_frequency[word] += 1
 
         # sort words w.r.t frequency
-        vocabulary = list(word_frequency.items())
-        vocabulary.sort(key=operator.itemgetter(1), reverse=True)
+        vocabulary = word_frequency.most_common()
         return vocabulary, size, date_start, date_end
 
     def source_csv_iterator(self):
@@ -265,10 +262,13 @@ class Corpus:
         return a_date
 
     def tokenize(self, text):
+        return list(self.tokenize_iterator(text))
+
+    def tokenize_iterator(self, text):
         # split the documents into tokens based on whitespaces
         raw_tokens = text.split()
         # trim punctuation and convert to lower case
-        return [token.strip(string.punctuation).lower() for token in raw_tokens if len(token) > 1 and 'http' not in token]
+        return (token.strip(string.punctuation).lower() for token in raw_tokens if len(token) > 1 and 'http' not in token)
 
     def cooccurring_words(self, event, p):
         main_word = event[2]
