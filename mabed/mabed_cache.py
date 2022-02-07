@@ -116,7 +116,7 @@ BASE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cache')
 
 
 def cached_getpath(c: 'Corpus', level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION, mabed: 'MABED' = None):
-    dataset_hash = Hash.file(c.source_file_path)
+    dataset_hash = Hash.file(c.source_file_path) + '_' + c.min_date_str
     vocab_hash = Hash.all(maf=c.min_absolute_freq,
                           mrf=c.max_relative_freq)
     corpus_hash = Hash.all(tsl=c.time_slice_length)

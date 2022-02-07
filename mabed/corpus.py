@@ -24,7 +24,15 @@ __email__ = "adrien.guille@univ-lyon2.fr"
 
 
 class Corpus:
-    def __init__(self, source_file_path, stopwords_file_path, min_absolute_freq=10, max_relative_freq=0.4, save_voc=False):
+    def __init__(
+            self,
+            source_file_path,
+            stopwords_file_path,
+            min_absolute_freq=10,
+            max_relative_freq=0.4,
+            save_voc=False,
+            filter_date_after: datetime = None,
+    ):
         self.source_file_path = source_file_path
         self.min_absolute_freq = min_absolute_freq
         self.max_relative_freq = max_relative_freq
@@ -46,10 +54,16 @@ class Corpus:
         self.mention_freq = None
         self.time_slice_length = None
 
-        self.start_date = '3000-01-01 00:00:00'[
-            :self.csv_datetime_format_length]
-        self.end_date = '1970-01-01 00:00:00'[:self.csv_datetime_format_length]
-        self.min_date = '1970-01-01 00:00:00'[:self.csv_datetime_format_length]
+        F = self.csv_datetime_format
+        L = self.csv_datetime_format_length
+        self.start_date = '3000-01-01 00:00:00'[:L]
+        self.end_date = '1970-01-01 00:00:00'[:L]
+        self.min_date_str = '1970-01-01 00:00:00'[:L]
+
+        if isinstance(filter_date_after, datetime):
+            self.min_date_str = filter_date_after.strftime(F)
+        elif isinstance(filter_date_after, str):
+            self.min_date_str = filter_date_after[:L]
 
         # load stop-words
         self.stopwords = utils.load_stopwords(stopwords_file_path)
@@ -62,14 +76,9 @@ class Corpus:
 
         self.size = size
 
-        print('start_date:', self.start_date)
-        print('end_date:', self.end_date)
         self.start_date = datetime.strptime(
             date_start, self.csv_datetime_format)
         self.end_date = datetime.strptime(date_end, self.csv_datetime_format)
-
-        print('start_date:', self.start_date)
-        print('end_date:', self.end_date)
 
         if save_voc:
             utils.write_vocabulary(vocab_vector)
@@ -80,8 +89,12 @@ class Corpus:
         print('   Filtered vocabulary: %d distinct words' %
               len(self.vocabulary))
 
-        print('   Corpus: %i tweets, spanning from %s to %s' %
+        print('   Corpus: %i articles, spanning from %s to %s' %
               (self.size, self.start_date, self.end_date))
+
+        cache_key = os.path.basename(cached_getpath(
+            self, CacheLevel.L1_DATASET, filename='', ext='', mabed=None).strip('/'))
+        print('   Cache key: %s' % cache_key)
 
     @corpus_cached(CacheLevel.L2_VOCAB, "vocab_map")
     def compute_filtered_vocabulary_map(self, min_absolute_freq, max_relative_freq, vocab_vector):
@@ -136,8 +149,8 @@ class Corpus:
                 date = line[date_column_index]
                 text = line[text_column_index]
 
-                if date < self.min_date:
-                    print('skipping line:', line)
+                if date < self.min_date_str:
+                    # print('skipping line:', line)
                     continue  # ignore
 
                 if not text:
@@ -190,9 +203,9 @@ class Corpus:
         vocab = self.vocabulary
 
         # clean the data directory
-        if os.path.exists('corpus'):
-            shutil.rmtree('corpus')
-        os.makedirs('corpus')
+        # if os.path.exists('corpus'):
+        #     shutil.rmtree('corpus')
+        # os.makedirs('corpus')
 
         def get_time_slice_index(date):
             time_delta = (date - start_date)

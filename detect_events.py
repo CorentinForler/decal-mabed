@@ -104,7 +104,7 @@ def main():
     print('- ' * 10)
     print()
 
-    print('Partitioning tweets into %d-minute time-slices...' %
+    print('Partitioning articles into %d-minute time-slices...' %
           time_slice_length)
     with utils.timer('Partitioning done'):
         my_corpus.discretize(time_slice_length)

@@ -2,6 +2,7 @@
 Simple Flask API server returning JSON data
 """
 
+from datetime import datetime
 from email.policy import default
 import os
 
@@ -26,12 +27,15 @@ def init_mabed(
     min_absolute_frequency,
     max_relative_frequency,
     time_slice_length,
+    filter_date_after,
 ):
     my_corpus = Corpus(
-        input_path,
-        stopwords,
-        min_absolute_frequency,
-        max_relative_frequency)
+        source_file_path=input_path,
+        stopwords_file_path=stopwords,
+        min_absolute_freq=min_absolute_frequency,
+        max_relative_freq=max_relative_frequency,
+        filter_date_after=filter_date_after,
+    )
 
     my_corpus.discretize(time_slice_length)
 
@@ -98,6 +102,11 @@ def events_GET():
     p = request.args.get('p', default=10, type=float)
     theta = request.args.get('t', default=0.6, type=float)
     sigma = request.args.get('s', default=0.6, type=float)
+    filter_date_after = request.args.get(
+        'from_date', default="2019-01-01", type=str)
+    filter_date_after = datetime.strptime(filter_date_after, '%Y-%m-%d')
+
+    print('\x1b[32m', filter_date_after, '\x1b[m')
 
     if k is None:
         return jsonify(missing_param('k')), 400
@@ -112,6 +121,7 @@ def events_GET():
         params['time_slice_length'] = tsl
         params['input_path'] = path
         params['stopwords'] = stopwords
+        params['filter_date_after'] = filter_date_after
 
         mabed = get_mabed(**params)
 

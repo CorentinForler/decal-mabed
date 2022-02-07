@@ -78,37 +78,23 @@ def load_stopwords(file_path):
     return stopwords
 
 
-def timeslice_path(time_slice: int):
-    return 'corpus/' + str(time_slice)
-
-
-def append_to_time_slice(time_slice: int, tweet_text: str):
-    with open(timeslice_path(time_slice), 'a', encoding='utf8') as time_slice_file:
-        time_slice_file.write(tweet_text + '\n')
-
-
-def init_time_slice(time_slice: int):
-    """
-    Creates or empties a time slice file.
-    """
-    with open(timeslice_path(time_slice), 'w', encoding='utf8') as dummy_file:
-        dummy_file.write('')
-
-
-def read_time_slice(time_slice: int):
-    """
-    Iterates over the tweets in a time slice.
-    """
-    with open(timeslice_path(time_slice), 'r', encoding='utf8') as time_slice_file:
-        for tweet_text in time_slice_file:
-            yield tweet_text.strip('\n')
-
-
-def time_slice_exists(time_slice: int):
-    """
-    Returns True if the time slice exists and it is not empty (at least two bytes, arbitrarily).
-    """
-    return os.path.exists(timeslice_path(time_slice)) and os.stat(timeslice_path(time_slice)).st_size > 2
+# def timeslice_path(time_slice: int):
+#     return 'corpus/' + str(time_slice)
+# def append_to_time_slice(time_slice: int, tweet_text: str):
+#     with open(timeslice_path(time_slice), 'a', encoding='utf8') as time_slice_file:
+#         time_slice_file.write(tweet_text + '\n')
+# def init_time_slice(time_slice: int):
+#     """Creates or empties a time slice file."""
+#     with open(timeslice_path(time_slice), 'w', encoding='utf8') as dummy_file:
+#         dummy_file.write('')
+# def read_time_slice(time_slice: int):
+#     """Iterates over the tweets in a time slice."""
+#     with open(timeslice_path(time_slice), 'r', encoding='utf8') as time_slice_file:
+#         for tweet_text in time_slice_file:
+#             yield tweet_text.strip('\n')
+# def time_slice_exists(time_slice: int):
+#     """Returns True if the time slice exists and it is not empty (at least two bytes, arbitrarily)."""
+#     return os.path.exists(timeslice_path(time_slice)) and os.stat(timeslice_path(time_slice)).st_size > 2
 
 
 def load_pickle(file_path):

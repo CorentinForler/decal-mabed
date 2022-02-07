@@ -446,6 +446,7 @@ function init(event_impact) {
     <div>
       <label>path = <input name="path" type="text" value="stock_article.csv" /> (CSV file path)</label>
       <label>stopwords = <input name="stopwords" type="text" value="customStopWords.txt" /> (stop-words file path)</label>
+      <label>from date: <input name="from_date" type="date" value="2019-01-01" /> (keep only articles after this date)</label>
       <br />
       <label>T = <input name="tsl" type="number" value="1440" step=1 min=1 /> (time slice length)</label>
       <label>maf = <input name="maf" type="number" value="10" step=1 min=1 /> (min. abs. freq.)</label>
