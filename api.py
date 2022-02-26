@@ -2,33 +2,50 @@
 Simple Flask API server returning JSON data
 """
 
-from datetime import datetime
-from email.policy import default
+from datetime import datetime, timedelta
+from math import floor
 from operator import itemgetter
 import os
 
 from flask import Flask, request, jsonify, send_from_directory, render_template
 from flask_cors import CORS
+from export_events_to_csv_annotable import get_mabed
+from mabed.mabed_cache import cached_getpath
 
 import mabed.utils as utils
 from mabed.mabed import MABED
 from mabed.corpus import Corpus
-
-mabed_pickle_path = 'out.pickle'
 
 app = Flask(__name__, static_folder='browser/static',
             template_folder='browser/templates')
 CORS(app)
 
 
-def init_mabed(
+def timedelta_to_string_human(td: timedelta):
+    seconds = td.total_seconds()
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    millis = int(td.microseconds / 1000)
+
+    if hours > 0:
+        return '{:.0f}h {:.0f}m {:.0f}s'.format(hours, minutes, seconds)
+    elif minutes > 0:
+        return '{:.0f}m {:.0f}s'.format(minutes, seconds)
+    elif floor(seconds) > 0:
+        return '{:.0f}s'.format(seconds)
+    else:
+        return '{:.0f}ms'.format(millis)
+
+
+def get_raw_mabed(
     *,
     input_path,
     stopwords,
     min_absolute_frequency,
     max_relative_frequency,
-    time_slice_length,
     filter_date_after,
+    **rest,
 ):
     my_corpus = Corpus(
         source_file_path=input_path,
@@ -37,26 +54,28 @@ def init_mabed(
         max_relative_freq=max_relative_frequency,
         filter_date_after=filter_date_after,
     )
-
-    my_corpus.discretize(time_slice_length)
-
     mabed = MABED(my_corpus)
     return mabed
 
 
-def get_mabed(**kwargs) -> MABED:
-    if os.path.exists(mabed_pickle_path):
-        mabed = utils.load_pickle(mabed_pickle_path)
-        for key, value in kwargs.items():
-            if (getattr(mabed, key, None) or getattr(mabed.corpus, key, None)) != value:
-                break
-        else:  # No break -> all attributes match
-            return mabed
+def compute_events(mabed: MABED, params):
+    mabed.corpus.discretize(time_slice_length=params['time_slice_length'])
+    return mabed.run(k=params['k'], p=params['p'], theta=params['theta'], sigma=params['sigma'])
 
-    # Else rebuild mabed object
-    mabed = init_mabed(**kwargs)
-    utils.save_pickle(mabed, mabed_pickle_path)
-    return mabed
+
+# def get_mabed(**kwargs) -> MABED:
+#     # if os.path.exists(mabed_pickle_path):
+#     #     mabed = utils.load_pickle(mabed_pickle_path)
+#     #     for key, value in kwargs.items():
+#     #         if (getattr(mabed, key, None) or getattr(mabed.corpus, key, None)) != value:
+#     #             break
+#     #     else:  # No break -> all attributes match
+#     #         return mabed
+
+#     # Else rebuild mabed object
+#     mabed = init_mabed(**kwargs)
+#     # utils.save_pickle(mabed, mabed_pickle_path)
+#     return mabed
 
 
 # @app.route('/api/events', methods=['GET'])
@@ -89,6 +108,8 @@ def missing_param(param):
 
 @app.route('/api/events.json', methods=['GET'])
 def events_GET():
+    full_request_duration = datetime.now()
+
     # Retrieve GET parameters
     path = request.args.get('path', default='stock_article.csv', type=str)
     stopwords = request.args.get(
@@ -100,51 +121,81 @@ def events_GET():
     tsl = request.args.get('tsl', default=24*60, type=int)
 
     k = request.args.get('k', type=int)
-    p = request.args.get('p', default=10, type=float)
+    p = request.args.get('p', default=10, type=int)
     theta = request.args.get('t', default=0.6, type=float)
     sigma = request.args.get('s', default=0.6, type=float)
     filter_date_after = request.args.get(
         'from_date', default="2019-01-01", type=str)
     filter_date_after = datetime.strptime(filter_date_after, '%Y-%m-%d')
 
+    n_articles = request.args.get('n_articles', default=3, type=int)
+
     if k is None:
         return jsonify(missing_param('k')), 400
 
-    # Load the model
-    print('Loading MABED...')
-    with utils.timer('MABED loaded'):
-        params = {}
+    params = {}
 
-        params['min_absolute_frequency'] = maf
-        params['max_relative_frequency'] = mrf
-        params['time_slice_length'] = tsl
-        params['input_path'] = path
-        params['stopwords'] = stopwords
-        params['filter_date_after'] = filter_date_after
+    params['min_absolute_frequency'] = maf
+    params['max_relative_frequency'] = mrf
+    params['input_path'] = path
+    params['stopwords'] = stopwords
+    params['filter_date_after'] = filter_date_after
 
-        mabed = get_mabed(**params)
+    params['time_slice_length'] = tsl
+    params['k'] = k
+    params['p'] = p
+    params['theta'] = theta
+    params['sigma'] = sigma
+
+    raw_mabed_duration = datetime.now()
+    mabed = get_raw_mabed(**params)
+    raw_mabed_duration = datetime.now() - raw_mabed_duration
 
     print('Running MABED...')
     with utils.timer('Event detection performed'):
-        mabed.run(k, p, theta, sigma)
+        compute_events_duration = datetime.now()
+        # compute_events(mabed, params)
+        discretize_events_duration = datetime.now()
+        mabed.corpus.discretize(time_slice_length=params['time_slice_length'])
+        discretize_events_duration = datetime.now() - discretize_events_duration
 
-    utils.save_pickle(mabed, mabed_pickle_path)
+        mabed_run_duration = datetime.now()
+        mabed.run(k=params['k'], p=params['p'],
+                  theta=params['theta'], sigma=params['sigma'])
+        mabed_run_duration = datetime.now() - mabed_run_duration
 
-    raw_events = mabed.events
+        compute_events_duration = datetime.now() - compute_events_duration
+
+    iterate_events_duration = datetime.now()
     events = list(utils.iterate_events_as_dict(mabed))
+    iterate_events_duration = datetime.now() - iterate_events_duration
 
-    articles = mabed.corpus.find_articles_for_events(raw_events)
-
+    find_articles_duration = datetime.now()
+    articles = mabed.find_articles_for_events(n_articles=n_articles)
     for e, a in zip(events, articles):
-        prio_queue = a['articles']
-        articles = []
-        while not prio_queue.empty():
-            articles.append(prio_queue.get())
-        articles = sorted(articles, key=itemgetter(0), reverse=True)
-        articles = list(map(itemgetter(1), articles))
-        e['articles'] = articles
+        e['articles'] = a
+    find_articles_duration = datetime.now() - find_articles_duration
 
-    return jsonify(events)
+    res = jsonify(events)
+
+    full_request_duration = datetime.now() - full_request_duration
+
+    print()
+    print()
+    print(
+        f'Full request duration: {timedelta_to_string_human(full_request_duration)}',
+        f'- Raw MABED duration: {timedelta_to_string_human(raw_mabed_duration)}',
+        f'- Compute events duration: {timedelta_to_string_human(compute_events_duration)}',
+        f'  · Discretize events duration: {timedelta_to_string_human(discretize_events_duration)}',
+        f'  · MABED run duration: {timedelta_to_string_human(mabed_run_duration)}',
+        f'- Iterate events duration: {timedelta_to_string_human(iterate_events_duration)}',
+        f'- Find articles duration: {timedelta_to_string_human(find_articles_duration)}',
+        sep="\n"
+    )
+    print()
+    print()
+
+    return res
 
 
 # @app.route('/')

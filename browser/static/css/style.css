@@ -1,6 +1,6 @@
-@font-face{
+/* @font-face{
     font-family: OpenSans;
-    src : url('../fonts/opensans.eot'); /* IE9 */
+    src : url('../fonts/opensans.eot');
     src : url('../fonts/opensans.eot?') format('eot'),
     url('../fonts/opensans.woff') format('woff'),
     url('../fonts/opensans.ttf') format('truetype');
@@ -8,85 +8,101 @@
 
 @font-face{
     font-family: OpenSans-Bold;
-    src : url('../fonts/opensans-bold.eot'); /* IE9 */
+    src : url('../fonts/opensans-bold.eot');
     src : url('../fonts/opensans-bold.eot?') format('eot'),
     url('../fonts/opensans-bold.woff') format('woff'),
-    url('../fonts/opensans-bold.ttf') format('truetype');}
+    url('../fonts/opensans-bold.ttf') format('truetype');
+} */
 
-h1{
-    font: 20px OpenSans-Bold;
-    color:#fff;
+html {
+    font-family: sans-serif;
+    font-family: "Inter";
+}
+
+h1 {
+    font-size: 20px;
+    font-weight: bold;
     line-height: 44px;
     margin: 0;
 }
 
-h2{
-    font: 17px OpenSans-Bold;
-    color:#000;
+h2 {
+    font-size: 17px;
+    font-weight: bold;
+    color: #000;
 }
 
-h3{
-    font: 14px OpenSans-Bold;
-    color:#000;
+h3 {
+    font-size: 14px;
+    font-weight: bold;
+    color: #000;
 }
 
-body{
+body {
     font-size: 12px;
 }
 
-p{
+p {
     color: #888;
 }
 
 section {
-	font-family: OpenSans-Bold;
-	font-size:20px;
-	line-height:44px;
-	color:#333333;
+    font-size: 20px;
+    line-height: 44px;
+    color: #111;
 }
 
 .main-content {
-	max-width: 900px;
-	min-width: 900px;
-	text-align: justify;
-	margin: auto;
-	padding: 5px;
+    /* max-width: 900px;
+    min-width: 900px; */
+    margin: auto;
+    padding: 25px;
 }
 
-button{
+button {
     height: 20px;
     line-height: 40px;
-    font: 11px OpenSans;
+    font-size: 11px;
     margin: auto;
 }
 
 body {
-    font: 11px OpenSans;
+    font-size: 11px;
     width: 100%;
     margin: auto;
     text-align: center;
-    color:#000;
+    color: #000;
 }
 
 svg {
     margin: 0px;
     padding: 0px;
-    height: 400px;
-    width: 900px;
+    /* height: 400px;
+    width: 900px; */
 }
 
-#navigation{
-    background-color:#444444;
+#navigation {
+    background-color: #444444;
     height: 40px;
     line-height: 40px;
 }
 
-#header{
-    background-color:#333333;
+#header {
+    background-color: #333333;
     line-height: 40px;
+    color: #fff;
 }
 
-a:link {color: #3DC9FF; text-decoration:none;}
-a:visited {color: #3DC9FF;}
-a:hover {color: #111111;}
-a:active {color: #3DC9FF;}
+a:link {
+    color: #3dc9ff;
+    text-decoration: none;
+}
+a:visited {
+    color: #3dc9ff;
+}
+a:hover {
+    color: #111111;
+}
+a:active {
+    color: #3dc9ff;
+}

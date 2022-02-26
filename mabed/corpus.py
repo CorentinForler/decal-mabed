@@ -1,7 +1,9 @@
 # coding: utf-8
 
 # std
+import itertools
 from queue import PriorityQueue
+import random
 import string
 from datetime import timedelta, datetime
 import csv
@@ -10,12 +12,13 @@ import shutil
 import operator
 from typing import Counter
 from tqdm import tqdm
+import re
 
 # math
 import numpy as np
 # from scipy.sparse import *
 from scipy.sparse.dok import dok_matrix
-from mabed.mabed_cache import PICKLE_EXTENSION, CacheLevel, cached_getpath, cached_timeslice_read, cached_timeslices, corpus_cached
+from mabed.mabed_cache import JSON_EXTENSION, PICKLE_EXTENSION, CacheLevel, cached_getpath, cached_timeslice_read, cached_timeslices, corpus_cached
 
 # mabed
 import mabed.utils as utils
@@ -34,6 +37,8 @@ class Corpus:
             save_voc=False,
             filter_date_after: datetime = None,
     ):
+        self.tokenize_single_iterator_regex = re.compile('[^\w-]', re.UNICODE)
+
         self.source_file_path = source_file_path
         self.min_absolute_freq = min_absolute_freq
         self.max_relative_freq = max_relative_freq
@@ -93,8 +98,8 @@ class Corpus:
         print('   Corpus: %i articles, spanning from %s to %s' %
               (self.size, self.start_date, self.end_date))
 
-        cache_key = os.path.basename(cached_getpath(
-            self, CacheLevel.L1_DATASET, filename='', ext='', mabed=None).strip('/'))
+        cache_key = cached_getpath(
+            self, CacheLevel.L1_DATASET, filename='', ext='', mabed=None)
         print('   Cache key: %s' % cache_key)
 
     @corpus_cached(CacheLevel.L2_VOCAB, "vocab_map")
@@ -119,7 +124,7 @@ class Corpus:
 
         for (date, text) in it:
             size += 1
-            words = self.tokenize_iterator(text)
+            words = self.tokenize_single_iterator(text)
 
             if date > date_end:
                 date_end = date
@@ -160,10 +165,11 @@ class Corpus:
                 yield date, text
 
     def tokenized_iterator(self):
-        path = cached_getpath(self, CacheLevel.L1_DATASET, "tokenized", ".csv")
+        for date, text in self.source_csv_iterator():
+            yield date, True, text, self.tokenize(text)
+        return
 
-        import spacy
-        nlp = spacy.load("en_core_web_sm")
+        path = cached_getpath(self, CacheLevel.L1_DATASET, "tokenized", ".csv")
 
         if os.path.exists(path):
             with open(path, 'r', encoding='utf8') as input_file:
@@ -172,6 +178,11 @@ class Corpus:
                     # date, mention, text, tokens
                     yield line[0], line[1], line[2], line[3:]
         else:
+            # print('Loading spacy...')
+            # import spacy
+            # nlp = spacy.load("en_core_web_md")
+            # print('\x1b[ALoading spacy... done')
+
             with open(path, 'w', encoding='utf8') as output_file:
                 csv_writer = csv.writer(output_file, delimiter='\t')
                 for (date, text) in self.source_csv_iterator():
@@ -181,11 +192,12 @@ class Corpus:
 
                     # mention = '@' in text
                     # mention = 'Apple' in text
-                    nlp_text = nlp(text)
-                    orgs = filter(lambda t: t.ent_type_ ==
-                                  'ORG' and len(t.text) > 1, nlp_text)
-                    has_orgs = any(orgs) and any(orgs)
-                    mention = has_orgs
+                    # nlp_text = nlp(text)
+                    # orgs = filter(lambda t: t.ent_type_ ==
+                    #               'ORG' and len(t.text) > 1, nlp_text)
+                    # has_orgs = any(orgs) and any(orgs)
+                    # mention = has_orgs
+                    mention = True  # random.random() < 0.05
 
                     csv_writer.writerow([date, mention, text, *words])
                     yield (date, mention, text, words)
@@ -276,13 +288,21 @@ class Corpus:
         return a_date
 
     def tokenize(self, text):
-        return list(self.tokenize_iterator(text))
+        return list(self.tokenize_single_iterator(text))
 
-    def tokenize_iterator(self, text):
+    def tokenize_single_iterator(self, text):
         # split the documents into tokens based on whitespaces
         raw_tokens = text.split()
         # trim punctuation and convert to lower case
-        return (token.strip(string.punctuation).lower() for token in raw_tokens if len(token) > 1 and 'http' not in token)
+        for token in raw_tokens:
+            if len(token) > 1 and 'http:' not in token and 'https:' not in token:
+                yield self.tokenize_single_iterator_regex.sub('', token).lower()
+
+    # def tokenize_single_iterator(self, text):
+    #     # split the documents into tokens based on whitespaces
+    #     raw_tokens = text.split()
+    #     # trim punctuation and convert to lower case
+    #     return (token.strip(string.punctuation).lower() for token in raw_tokens if len(token) > 1 and 'http' not in token)
 
     def cooccurring_words(self, event, p):
         main_word = event[2]
@@ -323,54 +343,3 @@ class Corpus:
         # TODO
         # # ??? return the cooccurring words even if there are less than p words
         # return top_cooccurring_words
-
-    def find_articles_for_events(self, raw_events, n_articles=5):
-        assert len(raw_events) > 0
-
-        def z(event):
-            words_to_count = set()
-            main_term = event[2]
-            main_components = main_term.split(', ')
-            words_to_count.update(main_components)
-
-            related_terms = event[3]
-            related_terms = map(lambda x: x[0], related_terms)
-            words_to_count.update(related_terms)
-
-            slice_start = event[1][0]
-            slice_end = event[1][1]  # inclusive
-
-            return {
-                'event': event,
-                'articles': PriorityQueue(maxsize=n_articles),
-                'slices': set(range(slice_start, slice_end + 1)),
-                'words': words_to_count,
-            }
-
-        xs = list(map(z, raw_events))
-
-        slices_to_inspect = set()
-        for x in xs:
-            slices_to_inspect.update(x['slices'])
-
-        for i in slices_to_inspect:
-            for tweet_text in cached_timeslice_read(self, i):
-                words = set(self.tokenize_iterator(tweet_text))
-
-                # tf-idf
-                for x in xs:
-                    if i in x['slices']:
-                        searched_words: set(str) = x['words']
-                        priority_queue: PriorityQueue = x['articles']
-                        score = len(words & searched_words)
-
-                        if score > 1:
-                            if priority_queue.full():
-                                old = priority_queue.get()
-                                if old[0] > score:
-                                    priority_queue.put(old)
-                                    continue
-
-                            priority_queue.put((score, tweet_text))
-
-        return xs

@@ -78,6 +78,13 @@ class CacheLevel(Enum):
     L3_DISCRETE = 3  # file shared for a specific corpus and vocabulary, MAF and MRF parameters
     L4_MABED = 4  # file shared for a specific mabed run
 
+    # comparison operators
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ge__(self, other):
+        return self.value >= other.value
+
 
 class Hash:
     @staticmethod
@@ -115,40 +122,49 @@ class Hash:
 BASE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cache')
 
 
-def cached_getpath(c: 'Corpus', level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION, mabed: 'MABED' = None):
-    dataset_hash = Hash.file(c.source_file_path) + '_' + c.min_date_str
-    vocab_hash = Hash.all(maf=c.min_absolute_freq,
-                          mrf=c.max_relative_freq)
-    corpus_hash = Hash.all(tsl=c.time_slice_length)
-    mabed_hash = Hash.all(
-        k=mabed.k,
-        p=mabed.p,
-        s=mabed.sigma,
-        t=mabed.theta
-    ) if mabed else 'NO_MABED'
+def cached_getpath(c: 'Corpus', level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION, mabed: 'MABED' = None, extra_data: dict = None):
+    path = BASE_PATH
 
-    if level == CacheLevel.L0_GLOBAL:
-        return f"{BASE_PATH}/{filename}{ext}"
-    elif level == CacheLevel.L1_DATASET:
-        return f"{BASE_PATH}/{dataset_hash}/{filename}{ext}"
-    elif level == CacheLevel.L2_VOCAB:
-        return f"{BASE_PATH}/{dataset_hash}/{vocab_hash}/{filename}{ext}"
-    elif level == CacheLevel.L3_DISCRETE:
-        return f"{BASE_PATH}/{dataset_hash}/{vocab_hash}/{corpus_hash}/{filename}{ext}"
-    elif level == CacheLevel.L4_MABED and mabed is not None:
-        return f"{BASE_PATH}/{dataset_hash}/{vocab_hash}/{corpus_hash}/{mabed_hash}/{filename}{ext}"
-    else:
-        raise ValueError('Unknown cache level')
+    if level >= CacheLevel.L1_DATASET:
+        dataset_hash = Hash.file(c.source_file_path) + '_' + c.min_date_str
+        path += f"/{dataset_hash}"
+
+    if level >= CacheLevel.L2_VOCAB:
+        vocab_hash = Hash.all(maf=c.min_absolute_freq, mrf=c.max_relative_freq)
+        path += f"/{vocab_hash}"
+
+    if level >= CacheLevel.L3_DISCRETE:
+        corpus_hash = Hash.all(tsl=c.time_slice_length)
+        path += f"/{corpus_hash}"
+
+    if level >= CacheLevel.L4_MABED and mabed is not None:
+        mabed_hash = Hash.all(
+            k=mabed.k,
+            p=mabed.p,
+            s=mabed.sigma,
+            t=mabed.theta
+        )
+        path += f"/{mabed_hash}"
+
+    if extra_data is not None:
+        extra_data_hash = Hash.all(**extra_data)
+        path += f"/{extra_data_hash}"
+
+    if filename and ext:
+        path += f"/{filename}{ext}"
+
+    return path
 
 
-def corpus_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION):
+def corpus_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION, extra_data=None):
     if should_not_use_cache():
         return lambda x: x
     filename = filename.replace('/', '_')
 
     def wrapper(func):
         def wrapped(c: 'Corpus', *args, **kwargs):
-            file_path = cached_getpath(c, level, filename, ext=ext)
+            file_path = cached_getpath(
+                c, level, filename, ext=ext, extra_data=extra_data)
 
             if file_path is not None and os.path.isfile(file_path):
                 with open(file_path, "rb") as file:
@@ -166,28 +182,38 @@ def corpus_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION
     return wrapper
 
 
-def mabed_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION):
+def mabed_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION, extra_data=None):
     if should_not_use_cache():
         return lambda x: x
     filename = filename.replace('/', '_')
 
+    def get_file_path(mabed):
+        return cached_getpath(mabed.corpus, level, filename, ext=ext, mabed=mabed, extra_data=extra_data)
+
+    def get_cached_result(file_path):
+        if file_path is not None and os.path.isfile(file_path):
+            with open(file_path, "rb") as file:
+                print(f"\x1b[1;34mcached\x1b[m {level.name} {filename}")
+                return _cached_load(file, file_path)
+
     def wrapper(func):
         def wrapped(mabed: 'MABED', *args, **kwargs):
-            file_path = cached_getpath(
-                mabed.corpus, level, filename, ext=ext, mabed=mabed)
-
-            if file_path is not None and os.path.isfile(file_path):
-                with open(file_path, "rb") as file:
-                    print(f"\x1b[1;34mcached\x1b[m {level.name} {filename}")
-                    return _cached_load(file, file_path)
+            file_path = get_file_path(mabed)
+            result = get_cached_result(file_path)
+            if result is not None:
+                return result
 
             result = func(mabed, *args, **kwargs)
 
             if file_path is not None:
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 _cached_dump(result, file_path)
-
             return result
+
+        def _has_cached_result(*, mabed):
+            print(get_file_path(mabed))
+            return os.path.isfile(get_file_path(mabed))
+        wrapped._has_cached_result = _has_cached_result
         return wrapped
     return wrapper
 

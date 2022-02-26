@@ -1,14 +1,19 @@
 # coding: utf-8
 
 # std
+from collections import Counter
+import itertools
 from multiprocessing.dummy import Pool as ThreadPool
 from operator import itemgetter
+import operator
 import os
+from queue import PriorityQueue
 
 # math
 import networkx as nx
 import numpy as np
-from mabed.mabed_cache import JSON_EXTENSION, PICKLE_EXTENSION, CacheLevel, mabed_cached
+from mabed.find_articles import find_articles_for_events
+from mabed.mabed_cache import JSON_EXTENSION, PICKLE_EXTENSION, CacheLevel, cached_timeslice_read, mabed_cached
 import mabed.stats as st
 from tqdm import tqdm
 
@@ -32,7 +37,7 @@ class MABED:
         self.theta = None
         self.sigma = None
 
-    def run(self, k=10, p=10, theta=0.6, sigma=0.5):
+    def run(self, k: int = 10, p: int = 10, theta: float = 0.6, sigma: float = 0.5):
         self.p = p
         self.k = k
         self.theta = theta
@@ -281,3 +286,6 @@ class MABED:
 
         for event in self.events:
             self.print_event(event)
+
+    def find_articles_for_events(self, **kwargs):
+        return find_articles_for_events(mabed=self, raw_events=self.events, **kwargs)

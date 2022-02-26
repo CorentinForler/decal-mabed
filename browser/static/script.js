@@ -301,8 +301,6 @@ function init(event_impact) {
     return maxA - maxB
   })
 
-  const colors = d3.scale.category20()
-
   nv.addGraph(function() {
     chart = nv.models.stackedAreaChart()
 
@@ -318,7 +316,8 @@ function init(event_impact) {
     chart.yAxis.scale().domain([0, 20])
     chart.yAxis.tickFormat(d3.format(',.1f'))
 
-    chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) })
+    // chart.xAxis.tickFormat(function(d) { return d3.time.format('%x')(new Date(d)) })
+    chart.xAxis.tickFormat(function(d) { return d3.time.format('%d/%m/%Y')(new Date(d)) })
 
     chart.height(700)
 
@@ -423,46 +422,95 @@ function init(event_impact) {
   form.innerHTML = `
     <style>
       form {
-        font-size: 18px;
-        line-height: 1.2;
-        background: black;
-        color: white;
-        padding: 4em;
+        font-size: 24px;
+        line-height: 2.5;
+        background: #eee;
+        color: black;
+        padding: 1em;
         text-align: left;
       }
       form label { display: block; }
-      form > div { width: fit-content; margin: auto; }
+      form > div {
+        width: fit-content;
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+      }
       .spinner-container { display: block; }
       .spinner {
         display: inline-block;
         width: 1em; height: 1em;
         border-radius: 1em;
-        border-left: 2px solid currentColor; border-right: 2px solid currentColor;
+        border-left: 2px solid currentColor;
+        border-right: 2px solid currentColor;
+        border-top: 2px solid transparent;
+        border-bottom: 2px solid transparent;
         animation: spin 1s linear infinite;
       }
       @keyframes spin { 100% { transform: rotate(360deg); } }
       .spinner-container[hidden] { opacity: 0; visibility: hidden; }
+
+      input[type=submit], input[name], select[name] {
+        color: inherit;
+        font-family: inherit;
+        font-size: inherit;
+        border: none;
+        border-radius: 4px;
+        padding: 5px 8px;
+        background-color: white;
+        box-shadow:
+          0 0 2px  1px hsl(0, 0%, 0%, 0.2),
+          0 0 5px -1px hsl(0, 0%, 0%, 0.2);
+        font-weight: bold;
+      }
+      input[type=submit] {
+        align-self: center;
+        margin-top: 2em;
+        font-size: 20px;
+        padding: 0.5ch 1ch;
+      }
     </style>
     <div>
-      <label>path = <input name="path" type="text" value="stock_article.csv" /> (CSV file path)</label>
-      <label>stopwords = <input name="stopwords" type="text" value="customStopWords.txt" /> (stop-words file path)</label>
-      <label>from date: <input name="from_date" type="date" value="2019-01-01" /> (keep only articles after this date)</label>
-      <br />
-      <label>T = <input name="tsl" type="number" value="1440" step=1 min=1 /> (time slice length)</label>
-      <label>maf = <input name="maf" type="number" value="10" step=1 min=1 /> (min. abs. freq.)</label>
-      <label>mrf = <input name="mrf" type="number" value="0.4" step=0.1 min=0 max=1 /> (max. rel. freq.)</label>
-      <br />
-      <label>K = <input name="k" type="number" value="10" step=1 min=1 /> (number of top events to detect)</label>
-      <label>P = <input name="p" type="number" value="10" step=1 min=1 /> (number of candidate words per event)</label>
-      <label>θ = <input name="t" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
-      <label>σ = <input name="s" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
+      <label>
+        Time slice length:
+        <input name="tsl" type="number" style="width: 7ch" value="24" step="1" min="1" />
+        <select name="tsl__unit" style="width: 125px;">
+          <option value="minutes">minutes</option>
+          <option value="hours" selected="selected">hours</option>
+          <option value="days">days</option>
+        </select>
+      </label>
+      <label>
+        Number of top events to detect:
+        <input name="k" type="number" value="10" style="width: 5ch" step="1" min="1" />
+      </label>
+      <label>
+        Maximum words per event:
+        <input name="p" type="number" value="10" step="1" min="1" style="width: 140px;" />
+      </label>
+      <details>
+        <summary>Advanced settings</summary>
+        <label>path = <input name="path" type="text" value="stock_article_uniq.csv" /> (CSV file path)</label>
+        <label>stopwords = <input name="stopwords" type="text" value="customStopWords.txt" /> (stop-words file path)</label>
+        <label>from date: <input name="from_date" type="date" value="2020-01-01" /> (keep only articles after this date)</label>
+        <br />
+        <label>maf = <input name="maf" type="number" value="10" step="1" min="1" /> (min. abs. freq.)</label>
+        <label>mrf = <input name="mrf" type="number" value="0.2" step=0.1 min=0 max=1 /> (max. rel. freq.)</label>
+        <br />
+        <label>θ = <input name="t" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
+        <label>σ = <input name="s" type="number" value="0.5" step=0.1 min=0 max=1 /></label>
+        <br />
+        <label>n_articles = <input name="n_articles" type="number" value="3" step="1" min="1" /></label>
+      </details>
 
-      <input type="submit" value="Submit" />
+      <input type="submit" value="Compute results" />
 
       <div class="spinner-container" hidden="hidden">
         Chargement en cours...
         &nbsp;
         <div class="spinner"></div>
+      </div>
+      <div class="error-container" hidden="hidden" style="color: #faa">
       </div>
     </div>
   `
@@ -471,111 +519,514 @@ function init(event_impact) {
     e.preventDefault()
 
     const values = {}
-    for (const input of form.querySelectorAll('input')) {
+    for (const input of form.querySelectorAll('input[name],select[name]')) {
       values[input.name] = input.value
     }
 
+    if (values.tsl__unit) {
+      const factor = {
+        minutes: 1,
+        hours: 60,
+        days: 60 * 24,
+      }
+      values.tsl = values.tsl * factor[values.tsl__unit]
+      values.tsl__unit = 'minutes'
+    }
+
+
     const spinner = form.querySelector('.spinner-container')
+    const errorContainer = form.querySelector('.error-container')
+
+    errorContainer.setAttribute('hidden', 'hidden')
+    errorContainer.innerHTML = ''
     spinner.removeAttribute('hidden')
-    await fetch_update(values)
-    spinner.setAttribute('hidden', 'true')
+
+    try {
+      await fetch_update(values)
+    } catch(e) {
+      errorContainer.innerHTML = `${e.message}<br />${e.stack}`
+      errorContainer.removeAttribute('hidden')
+    } finally {
+      spinner.setAttribute('hidden', 'hidden')
+    }
   })
 }
 
-function update(event_impact, opts = {}) {
-    const svg = d3.select('#chart1')
-
-    let defs = svg.select('defs.all-defs')
-    if (!defs.node()) {
-      defs = svg.append('defs').attr('class', 'all-defs')
-    } else {
-      defs.html('') // empty
+function update(event_impact = [], raw_events = null, opts = {}) {
+  const rainbow = Array.from(
+    { length: event_impact.length },
+    (_, i) => {
+      const h = (i / event_impact.length) * 360
+      const s = 1
+      const lab = d3.lab(d3.hsl(h, s, 0.5))
+      lab.l = 50
+      return lab.toString()
     }
+  )
+  const colors = (i) => rainbow[i]
+  // const colors = d3.scale.linear()
+  //   .domain([0, event_impact.length])
+  //   .range([d3.hsl(0, 1, 0.5), d3.hsl(360, 1, 0.5)])
 
-    d3.select('#chart1')
-      .datum(event_impact)
-      .call(chart)
+  const svg = d3.select('#chart1')
 
-    const nvAreas = d3.selectAll('#chart1 .nv-area')
-    nvAreas.attr('custom-fill', (d) => slugifyToId(d.key))
+  let defs = svg.select('defs.all-defs')
+  if (!defs.node()) {
+    defs = svg.append('defs').attr('class', 'all-defs')
+  } else {
+    defs.html('') // empty
+  }
 
-    let styleElement = d3.select('#chart1 style')
-    if (!styleElement.node()) {
-      styleElement = d3.select('#chart1').append('style')
-    }
+  if (raw_events) {
+    const eventChartId = row => `table-impact--event-${slugifyToId(row.term + '_' + row.mag)}`
 
-    let css = ''
-    nvAreas.each((nvArea) => {
-      // console.log(nvArea)
-      const index = nvArea.seriesIndex
-      const text = (nvArea.articles && nvArea.articles[0]) || nvArea.key
+    const abbr = (text, hoverText, cl='') => `<abbr class="${cl}" title="${hoverText.replace('"','\\"')}">${text}</abbr>`
+    tabulate(raw_events, ['Event Terms', 'Proposed articles', 'Event impact'], {
+      tableElement: d3.select('#event_table'),
+      css: `
+        #event_table {
+          border-collapse: collapse;
+          border: 1px solid #ddd;
+          font-size: 18px;
+          line-height: 1.4;
+          position: sticky;
+        }
+        #event_table td, th {
+          border: 2px solid black;
+          _border: 1px solid #ddd;
+          padding: 4px;
+        }
+        #event_table thead {
+          background-color: #eee;
+          position: sticky;
+          top: 0px;
+          z-index: 1;
+          box-shadow: 0 2px 0 0 #000, 0 -2px 0 0 #000;
+          border: 0px solid black !important;
+        }
+        #event_table tr:nth-child(even) {
+          background-color: hsla(0, 0%, 50%, 0.1);
+        }
+        #event_table th:first-child {
+          width: 180px;
+        }
+        #event_table tbody tr {
+          border: 2px solid black;
+        }
+        #event_table tbody tr td {
+          padding: 0 2px;
+        }
+        #event_table .term, #event_table .related-term {
+          white-space: nowrap;
+        }
+        #event_table .term {
+          /*color: #ff7273;*/
+          color: #004bbd;
+          font-weight: 900;
+          /*text-decoration: underline;*/
+          /*text-decoration-style: dotted;*/
+        }
+        #event_table .related-term {
+          /*color: #00adff;*/
+          color: #8a4000;
+          font-weight: 600;
+          font-style: italic;
+          text-decoration: none;
+        }
 
-      // const id = index
-      const id = slugifyToId(nvArea.key)
 
-      // if nvArea.color is a color
-      let bg
-      if (nvArea.color.indexOf('#') === 0) {
-        bg = d3.hsl(nvArea.color)
-      } else {
-        bg = d3.hsl(colors(index))
+        #event_table .event-proposed-article-wrapper input {
+          width: 1.6em;
+          height: 1.6em;
+          padding: 0;
+          margin: 0;
+        }
+        #event_table .event-proposed-article-wrapper button {
+          padding: 0;
+          margin: 0;
+          line-height: 0px;
+          font-family: Inter;
+          font-weight: 900;
+          font-size: 14px;
+        }
+        #event_table .event-proposed-article-wrapper > div.controls {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          width: auto;
+          height: 100%;
+          margin-top: 0.2em;
+          margin-right: 0.4em;
+        }
+        #event_table .event-proposed-article-wrapper {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          justify-content: flex-start;
+
+          padding: 1em 2px;
+
+          _padding-left: 1.5em;
+          _margin-left: -1.5em;
+          _margin-right: -2px;
+          _padding-right: 2px;
+          text-align: left;
+        }
+        #event_table .event-proposed-article-wrapper[data-correct="true"] input[type="checkbox"] {
+          accent-color: #326d45;
+        }
+        #event_table .event-proposed-article-wrapper[data-correct="true"] /*.event-proposed-article*/ {
+          background-color: hsla(140, 100%, 50%, 0.1);
+          border-radius: 5px;
+        }
+        #event_table .event-proposed-article-wrapper[data-correct="false"] /*.event-proposed-article*/ {
+          text-decoration: line-through !important;
+          text-decoration-color: rgba(0, 0, 0, 0.5);
+          opacity: 0.8;
+        }
+      `,
+      mapper(v, column, row) {
+        if (column === 'Event Terms') {
+          const term = row.term
+          const related = row.related
+
+          let html = ''
+
+          const f = (term) => `<span class="term">${term}</span>`
+          html += term.split(', ').map(f).join(', ')
+
+          if (Array.isArray(related)) {
+            const f = ({ term, mag }) => abbr(term, mag.toString(), 'related-term')
+            html += ", " + related.map(f).join(', ')
+            // return v.map(({ term, mag }) => `${term}(${mag})`).join(', ')
+          }
+
+          return { html }
+        }
+        if (column === 'start' || column === 'end') {
+          const splits = v.split(' ')
+          if (splits[1] === '00:00:00') return splits[0]
+          return splits.join('\n')
+        }
+        if (column === 'Event impact') {
+          return { html: `<div style="width: 450px; height: 100%; aspect-ratio: 16/9;" id="${eventChartId(row)}"></div>` }
+        }
+        if (column === 'Proposed articles') {
+          v = row.articles
+          if (!v) return ''
+          if (!Array.isArray(v)) {
+            v = [v]
+          }
+
+          const regexMain = new RegExp(`(?<!")\\b(${
+            row.term.split(', ').join('|')
+          })\\b(?!")`, 'ig')
+
+          const regexRelated = new RegExp(`(?<!")\\b(${
+            row.related.map(({ term }) => term).join('|')
+          })\\b(?!")`, 'ig')
+
+          const uniq = (x, i, arr) => arr.indexOf(x) === i
+
+          const replaces = [{
+            regex: regexMain,
+            replace: '<span class="term">$1</span>',
+          }, {
+            regex: regexRelated,
+            replace: '<span class="related-term">$1</span>',
+          }, {
+            regex: /(\(ap\) \p{Pd} )/igu,
+            replace: '',
+          }]
+
+          const replace = (s) => replaces.reduce((acc, r) => acc.replace(r.regex, r.replace), s)
+
+          const checkboxWrap = (html, i) => `<label class="event-proposed-article-wrapper">
+            <div class="controls">
+              <input type="checkbox" data-indeterminate="true" />
+              <button>↑</button>
+              <button>↓</button>
+            </div>
+            <div class="event-proposed-article">${html}</div>
+          </label>`
+
+          const html = v
+            .map(t => {
+              const [score, x] = Array.isArray(t) ? t : ["?", t]
+              // const countMainTerms = (x.match(regexMain) || []).map(y => y.toLowerCase()).filter(uniq).length
+              // const countRelatedTerms = (x.match(regexRelated) || []).map(y => y.toLowerCase()).filter(uniq).length
+              // return `score=${score}, #main=${countMainTerms}, #related=${countRelatedTerms}<br/>${replace(x)}`
+              return replace(x)
+            })
+            .map(checkboxWrap)
+            .join('')
+            // .join('<br/>')
+
+          return { html }
+          // return v
+          // return { html: abbr(v.substr(0, 70) + "…", v) }
+        }
+        return v
       }
-      const angle = -45 * bg.h / 360
-      const fg = bg.l > 0.5 ? bg.darker(4) : bg.brighter(2)
-      // const fg = bg.l > 0.5 ? "#000" : "#fff";
-      const fgHover = bg.l > 0.5 ? bg.darker(1) : bg.brighter(1)
-
-      textPatternFactory(defs, `pattern--${id}`, {
-        text, fg, bg, angle, fontSize: 10, lineHeight: 1.2, angle: 0,
-      })
-      // textPatternFactory(defs, `pattern-hover--${id}`, {
-      //   text, bg, angle,
-      //   fg: fgHover,
-      // })
-      // textPatternFactory(defs, `pattern-noangle--${id}`, {
-      //   text, bg,
-      //   fg: bg.l > 0.5 ? '#000' : '#fff',
-      //   angle: 0,
-      //   lineHeight: 1.1,
-      // })
-      textPatternFactory(defs, `pattern-textonly--${id}`, {
-        text, bg: 'transparent',
-        fg: bg.l > 0.5 ? '#000' : '#fff',
-        // strokeColor: bg.l < 0.5 ? '#000' : '#fff',
-        angle: 0,
-        lineHeight: 1.1,
-      })
-
-      appendFilterEmboss(defs, `emboss-${id}`, bg)
-
-      // css += `.nv-area-${index} { fill: url("#pattern--${id}") !important; }` + '\n'
-      // css += `.nv-area-${index}:hover { fill: url("#pattern-hover--${id}") !important; }` + '\n'
-      css += `[custom-fill="${id}"] { fill: url("#pattern--${id}") !important; }` + '\n'
-      // css += `[custom-fill="${id}"]:hover { fill: url("#pattern-hover--${id}") !important; }` + '\n'
     })
-    styleElement.text(css)
 
-    const chartStyleLinesParams1 = {
-      width: 1400,
-      height: 1000,
-      scaleHeightTop: 0, // 0.5 to not have distorsion
-      scaleHeightBottom: 2, // 0.5 to not have distorsion
+    document.querySelectorAll('input[type="checkbox"][data-indeterminate="true"]').forEach(input => {
+      input.removeAttribute('data-indeterminate')
+      input.indeterminate = true
+      input.checked = false
+      input.addEventListener('change', () => {
+        input.parentElement.parentElement.setAttribute('data-correct', input.checked ? 'true' : 'false')
+      })
+    })
+
+    const colProposedArticles = document.querySelector('#event_table thead th:nth-child(2)')
+    colProposedArticles.style.position = 'relative'
+    colProposedArticles.innerHTML += `<div style="position:absolute;top:0px;left:4px;line-height:1.85em;opacity:0.8;"><input type=checkbox disabled checked/>Correct?</div>`
+
+    let maxImpact = 0
+    for (const event of raw_events) {
+      for (const { value } of event.impact) {
+        if (value > maxImpact) {
+          maxImpact = value
+        }
+      }
     }
-    const chartStyleLinesParams2 = {
-      width: 1400,
-      height: 1000,
-      scaleHeightTop: 0.5, // 0.5 to not have distorsion
-      scaleHeightBottom: 0.5, // 0.5 to not have distorsion
+    const k = Math.pow(10, Math.floor(Math.log10(maxImpact)))
+    maxImpact = Math.ceil(maxImpact / k) * k
+
+    let eventIndex = -1
+    for (const event of raw_events) {
+      eventIndex += 1
+      const dates = []
+      const values = []
+
+      const imp = event.impact.slice() // shallow copy
+      // while (imp.length > 0 && imp[0].value == 0) {
+      //   imp.shift()
+      // }
+      // while (imp.length > 0 && imp[imp.length - 1].value == 0) {
+      //   imp.pop()
+      // }
+
+      for (const { date, value } of imp) {
+        dates.push(new Date(date.replace(' ', 'T') + 'Z'))
+        values.push(Math.round(value * 100) / 100)
+      }
+
+      // https://naver.github.io/billboard.js/release/latest/doc/Options.html
+      // generate the chart
+      bb.generate({
+        bindto: "#" + eventChartId(event),
+        data: {
+          // type: "area-spline",
+          type: "area",
+          x: "x",
+          columns: [
+            ["x", ...dates],
+            ["impact", ...values],
+          ],
+          colors: { impact: colors(eventIndex) },
+        },
+        axis: {
+          x: {
+            type: "timeseries",
+            min: dates[0],
+            max: dates[dates.length - 1],
+            padding: { left: 0, right: 0 },
+            tick: {
+              format: "%Y-%m-%d",
+              fit: true,
+              count: 8,
+            },
+            clipPath: false,
+          },
+          y: {
+            label: 'Impact',
+            max: maxImpact,
+            min: 0,
+            padding: { top: 0, bottom: 0 },
+            clipPath: false,
+          },
+        },
+        zoom: {
+          enabled: true
+        },
+        legend: {
+          show: false,
+        },
+        point: {
+          show: false,
+        }
+      });
     }
+  }
 
-    chartStyleLines(d3.select('#chart-style-lines'), event_impact, chartStyleLinesParams1)
-    chartStyleLines(d3.select('#chart-style-lines-mirror'), event_impact, chartStyleLinesParams2)
+  d3.select('#chart1')
+    .datum(event_impact)
+    .call(chart)
 
-    if (opts.zoom) {
-      chart.xDomain(opts.zoom).update()
+  const nvAreas = d3.selectAll('#chart1 .nv-area')
+  nvAreas.attr('custom-fill', (d) => slugifyToId(d.key))
+
+  let styleElement = d3.select('#chart1 style')
+  if (!styleElement.node()) {
+    styleElement = d3.select('#chart1').append('style')
+  }
+
+  let css = ''
+  nvAreas.each((nvArea) => {
+    // console.log(nvArea)
+    const index = nvArea.seriesIndex
+    const text = nvArea.event.term
+    // const text = (nvArea.articles && nvArea.articles[0]) || nvArea.key
+
+    // const id = index
+    const id = slugifyToId(nvArea.key)
+
+    nvArea.color = d3.lab(colors(index)).darker(1).toString()
+
+    let bg
+    if (nvArea.color.indexOf('#') === 0) {
+      // if nvArea.color is a color
+      bg = d3.lab(nvArea.color)
+    } else {
+      bg = d3.lab(colors(index))
     }
+    const angle = -45 * bg.h / 360
+    // const fg = bg.l > 50 ? bg.darker(4) : bg.brighter(2)
+    const fg = bg.l > 50 ? "#000" : "#fff";
+    const fgHover = bg.l > 50 ? bg.darker(1) : bg.brighter(1)
 
-    chart.update()
+    textPatternFactory(defs, `pattern--${id}`, {
+      text, fg, fgHover, bg, angle, fontSize: 15, lineHeight: 1.5,
+    })
+    // textPatternFactory(defs, `pattern-hover--${id}`, {
+    //   text, bg, angle,
+    //   fg: fgHover,
+    // })
+    // textPatternFactory(defs, `pattern-noangle--${id}`, {
+    //   text, bg,
+    //   fg: bg.l > 50 ? '#000' : '#fff',
+    //   angle: 0,
+    //   lineHeight: 1.1,
+    // })
+    textPatternFactory(defs, `pattern-textonly--${id}`, {
+      text, bg: 'transparent',
+      fg: bg.l > 50 ? '#000' : '#fff',
+      // strokeColor: bg.l < 50 ? '#000' : '#fff',
+      angle: 0,
+      lineHeight: 1.1,
+    })
+
+    appendFilterEmboss(defs, `emboss-${id}`, bg)
+
+    // css += `.nv-area-${index} { fill: url("#pattern--${id}") !important; }` + '\n'
+    // css += `.nv-area-${index}:hover { fill: url("#pattern-hover--${id}") !important; }` + '\n'
+    css += `[custom-fill="${id}"] { fill: url("#pattern--${id}") !important; }` + '\n'
+    // css += `[custom-fill="${id}"]:hover { fill: url("#pattern-hover--${id}") !important; }` + '\n'
+  })
+  styleElement.text(css)
+
+  const chartStyleLinesParams1 = {
+    width: 1400,
+    height: 1000,
+    scaleHeightTop: 0, // 0.5 to not have distorsion
+    scaleHeightBottom: 2, // 0.5 to not have distorsion
+  }
+  const chartStyleLinesParams2 = {
+    width: 1400,
+    height: 1000,
+    scaleHeightTop: 0.5, // 0.5 to not have distorsion
+    scaleHeightBottom: 0.5, // 0.5 to not have distorsion
+  }
+
+  chartStyleLines(d3.select('#chart-style-lines'), event_impact, chartStyleLinesParams1)
+  chartStyleLines(d3.select('#chart-style-lines-mirror'), event_impact, chartStyleLinesParams2)
+
+  if (opts.zoom) {
+    chart.xDomain(opts.zoom).update()
+  }
+
+  chart.update()
+}
+
+function tabulate(data, columns, opts = {}) {
+  const randomId = Math.random().toString(36).substring(2)
+  if (typeof opts.mapper !== 'function') {
+    opts.mapper = (x) => x
+  }
+  if (!opts.tableElement) {
+    opts.tableElement = null
+  }
+  if (!opts.css) {
+    opts.css = `
+      table.tabulated-${randomId} {
+        border-collapse: collapse;
+        border: 1px solid #ddd;
+        font-family: sans-serif;
+        font-size: 12px;
+      }
+      table.tabulated-${randomId} td, th {
+        border: 1px solid #ddd;
+        padding: 5px;
+      }
+      table.tabulated-${randomId} thead {
+        background-color: #eee;
+      }
+      table.tabulated-${randomId} tr:nth-child(even) {
+        background-color: hsla(220, 100%, 50%, 0.01);
+      }
+    `
+  }
+
+  // https://stackoverflow.com/a/18072266
+	const table = opts.tableElement ? opts.tableElement : d3.select('body').append('table')
+  table.attr('class', `tabulated-${randomId}`)
+
+  table.selectAll('*').remove()
+
+	const thead = table.append('thead')
+	const	tbody = table.append('tbody')
+
+  // append the css
+  table.append('style')
+    .text(opts.css)
+
+	// append the header row
+	thead.append('tr')
+	  .selectAll('th')
+	  .data(columns).enter()
+	  .append('th')
+	    .text(column => column)
+
+	// create a row for each object in the data
+	const rows = tbody.selectAll('tr')
+	  .data(data)
+	  .enter()
+	  .append('tr')
+
+	// create a cell in each row for each column
+	const cells = rows.selectAll('td')
+	  .data(row => columns.map(
+      column => ({
+        column,
+        value: opts.mapper(row[column], column, row),
+	    })
+    ))
+	  .enter()
+	  .append('td')
+	    .html(d => {
+        if (typeof d.value === 'object' && typeof d.value.html === 'string') {
+          return d.value.html || ''
+        } else {
+          return (d.value || '').toString()
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+            .replace('&', '&amp;')
+        }
+      })
+
+  return table
 }
 
 async function fetch_update(params) {
@@ -593,18 +1044,37 @@ async function fetch_update(params) {
     return
   }
 
-  const data = await res.json()
+  let data = await res.json()
 
-  console.log(data)
+  data = [data[0], data[1], data[3]]
+  const raw_events = data
+
+  window._data = data
 
   const event_impact = data.map((event) => {
-    // const key = event.term
-    let key = event.articles[0]
-    const i = key.toLowerCase().indexOf("(ap)")
-    if (i >= 0) { key = key.substring(i + 7).trim() }
-
-    const values = event.impact.map((impact) => [+(new Date(impact.date)), impact.value])
-    return { key, values, articles: event.articles }
+    const key = event.term
+    const values = event.impact
+      .map((impact) => {
+        const k = +(new Date(impact.date))
+        const v = Math.round(impact.value * 100) / 100
+        return [k, v]
+      })
+    if (Array.isArray(event.articles)) {
+      if (Array.isArray(event.articles[0])) {
+        // score, article
+        const articles = event.articles.map(x => x[1])
+        return { key: articles[0], values, articles, event }
+      } else {
+        return { key: event.articles[0], values, articles: event.articles, event }
+      }
+    } else if (event.articles) {
+      let desc = event.articles
+      const i = desc.toLowerCase().indexOf("(ap)")
+      if (i >= 0) { desc = desc.substring(i + 7).trim() }
+      return { key, values, articles: [desc], event }
+    } else {
+      return { key, values, articles: [], event }
+    }
   })
 
   // Auto-zoom
@@ -638,5 +1108,5 @@ async function fetch_update(params) {
 
   // console.log({zoom})
 
-  update(event_impact, { zoom })
+  update(event_impact, raw_events, { zoom })
 }

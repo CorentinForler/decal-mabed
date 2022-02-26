@@ -226,3 +226,10 @@ def auto_detect_csv_settings(path: str):
     print('   CSV guessed text column name:', text_col_name)
     print('   CSV guessed datetime format:', datetime_format)
     return (separator, date_col_name, text_col_name, datetime_format)
+
+
+def parallel_iterator_unordered(it):
+    from multiprocessing.dummy import Pool as ThreadPool
+    pool = ThreadPool()
+    for i in pool.imap_unordered(lambda x: x, it):
+        yield i
