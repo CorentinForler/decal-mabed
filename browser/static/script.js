@@ -411,109 +411,7 @@ function init(event_impact) {
   //   }
   // })
 
-  let form = document.querySelector('form#interactive-form')
-  if (!form){
-    form = document.createElement('form')
-    const header = document.getElementById('header')
-    header.appendChild(form)
-  }
-
-  form.id = 'interactive-form'
-  form.innerHTML = `
-    <style>
-      form {
-        font-size: 24px;
-        line-height: 2.5;
-        background: #eee;
-        color: black;
-        padding: 1em;
-        text-align: left;
-      }
-      form label { display: block; }
-      form > div {
-        width: fit-content;
-        margin: auto;
-        display: flex;
-        flex-direction: column;
-      }
-      .spinner-container { display: block; }
-      .spinner {
-        display: inline-block;
-        width: 1em; height: 1em;
-        border-radius: 1em;
-        border-left: 2px solid currentColor;
-        border-right: 2px solid currentColor;
-        border-top: 2px solid transparent;
-        border-bottom: 2px solid transparent;
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin { 100% { transform: rotate(360deg); } }
-      .spinner-container[hidden] { opacity: 0; visibility: hidden; }
-
-      input[type=submit], input[name], select[name] {
-        color: inherit;
-        font-family: inherit;
-        font-size: inherit;
-        border: none;
-        border-radius: 4px;
-        padding: 5px 8px;
-        background-color: white;
-        box-shadow:
-          0 0 2px  1px hsl(0, 0%, 0%, 0.2),
-          0 0 5px -1px hsl(0, 0%, 0%, 0.2);
-        font-weight: bold;
-      }
-      input[type=submit] {
-        align-self: center;
-        margin-top: 2em;
-        font-size: 20px;
-        padding: 0.5ch 1ch;
-      }
-    </style>
-    <div>
-      <label>
-        Time slice length:
-        <input name="tsl" type="number" style="width: 7ch" value="24" step="1" min="1" />
-        <select name="tsl__unit" style="width: 125px;">
-          <option value="minutes">minutes</option>
-          <option value="hours" selected="selected">hours</option>
-          <option value="days">days</option>
-        </select>
-      </label>
-      <label>
-        Number of top events to detect:
-        <input name="k" type="number" value="10" style="width: 5ch" step="1" min="1" />
-      </label>
-      <label>
-        Maximum words per event:
-        <input name="p" type="number" value="10" step="1" min="1" style="width: 140px;" />
-      </label>
-      <details>
-        <summary>Advanced settings</summary>
-        <label>path = <input name="path" type="text" value="stock_article_uniq.csv" /> (CSV file path)</label>
-        <label>stopwords = <input name="stopwords" type="text" value="customStopWords.txt" /> (stop-words file path)</label>
-        <label>from date: <input name="from_date" type="date" value="2020-01-01" /> (keep only articles after this date)</label>
-        <br />
-        <label>maf = <input name="maf" type="number" value="10" step="1" min="1" /> (min. abs. freq.)</label>
-        <label>mrf = <input name="mrf" type="number" value="0.2" step=0.1 min=0 max=1 /> (max. rel. freq.)</label>
-        <br />
-        <label>θ = <input name="t" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
-        <label>σ = <input name="s" type="number" value="0.5" step=0.1 min=0 max=1 /></label>
-        <br />
-        <label>n_articles = <input name="n_articles" type="number" value="3" step="1" min="1" /></label>
-      </details>
-
-      <input type="submit" value="Compute results" />
-
-      <div class="spinner-container" hidden="hidden">
-        Chargement en cours...
-        &nbsp;
-        <div class="spinner"></div>
-      </div>
-      <div class="error-container" hidden="hidden" style="color: #faa">
-      </div>
-    </div>
-  `
+  const form = document.querySelector('form#interactive-form')
   form.addEventListener('submit', async function (e) {
     // prevent submit
     e.preventDefault()
@@ -1046,7 +944,7 @@ async function fetch_update(params) {
 
   let data = await res.json()
 
-  data = [data[0], data[1], data[3]]
+  // data = [data[0], data[1], data[3]]
   const raw_events = data
 
   window._data = data

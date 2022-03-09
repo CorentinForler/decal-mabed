@@ -135,6 +135,8 @@ def events_GET():
 
     params = {}
 
+    params['label'] = request.args.get('label', default='no label', type=str)
+
     params['min_absolute_frequency'] = maf
     params['max_relative_frequency'] = mrf
     params['input_path'] = path
@@ -179,21 +181,6 @@ def events_GET():
     res = jsonify(events)
 
     full_request_duration = datetime.now() - full_request_duration
-
-    print()
-    print()
-    print(
-        f'Full request duration: {timedelta_to_string_human(full_request_duration)}',
-        f'- Raw MABED duration: {timedelta_to_string_human(raw_mabed_duration)}',
-        f'- Compute events duration: {timedelta_to_string_human(compute_events_duration)}',
-        f'  · Discretize events duration: {timedelta_to_string_human(discretize_events_duration)}',
-        f'  · MABED run duration: {timedelta_to_string_human(mabed_run_duration)}',
-        f'- Iterate events duration: {timedelta_to_string_human(iterate_events_duration)}',
-        f'- Find articles duration: {timedelta_to_string_human(find_articles_duration)}',
-        sep="\n"
-    )
-    print()
-    print()
 
     return res
 

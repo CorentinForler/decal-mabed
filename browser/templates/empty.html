@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" type="text/css">
         <link href="{{ url_for('static', filename='css/nv.d3.css') }}" rel="stylesheet" type="text/css">
         <link href="{{ url_for('static', filename='css/billboard.css') }}" rel="stylesheet" type="text/css">
@@ -15,7 +16,54 @@
     <body>
         <header id="header">
             <h1>Mention-anomaly-based Event Detection and Tracking in Twitter</h1>
+
+            <form id="interactive-form">
+                <div>
+                    <label>
+                        Time slice length:
+                        <input name="tsl" type="number" style="width: 7ch" value="24" step="1" min="1" />
+                        <select name="tsl__unit" style="width: 125px;">
+                            <option value="minutes">minutes</option>
+                            <option value="hours" selected="selected">hours</option>
+                            <option value="days">days</option>
+                        </select>
+                    </label>
+                    <label>
+                        Number of top events to detect:
+                        <input name="k" type="number" value="10" style="width: 5ch" step="1" min="1" />
+                    </label>
+                    <label>
+                        Maximum words per event:
+                        <input name="p" type="number" value="10" step="1" min="1" style="width: 140px;" />
+                    </label>
+
+                    <details>
+                        <summary>Advanced settings</summary>
+                        <label>input path = <input name="path" type="text" value="stock_article.csv" /> (CSV file path)</label>
+                        <label>stopwords = <input name="stopwords" type="text" value="pyMABED/stopwords/custom.txt" /> (stop-words file path)</label>
+                        <label>from date: <input name="from_date" type="date" value="2020-01-01" /> (keep only articles after this date)</label>
+                        <br />
+                        <label>maf = <input name="maf" type="number" value="10" step="1" min="1" /> (min. abs. freq.)</label>
+                        <label>mrf = <input name="mrf" type="number" value="0.2" step=0.1 min=0 max=1 /> (max. rel. freq.)</label>
+                        <br />
+                        <label>θ = <input name="t" type="number" value="0.6" step=0.1 min=0 max=1 /></label>
+                        <label>σ = <input name="s" type="number" value="0.5" step=0.1 min=0 max=1 /></label>
+                        <br />
+                        <label>n_articles = <input name="n_articles" type="number" value="1" step="1" min="1" /></label>
+                    </details>
+
+                    <input type="submit" value="Compute results" />
+
+                    <div class="spinner-container" hidden="hidden">
+                        Loading...
+                        &nbsp;
+                        <div class="spinner"></div>
+                    </div>
+                    <div class="error-container" hidden="hidden" style="color: #800"></div>
+                </div>
+            </form>
         </header>
+
         <main class="main-content">
             <table id="event_table"></table>
             <svg id="chart1" style="height: 700px;"></svg>
