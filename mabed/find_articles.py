@@ -54,8 +54,8 @@ def lorem_ipsum(mabed, raw_events, n_articles):
 def doc_iterator(mabed, slices: set, words_to_keep: set):
     for i in slices:
         for doc_text in cached_timeslice_read(mabed.corpus, i):
-            # if len(doc_text) > 400:
-            #     continue
+            if len(doc_text) > 400:
+                continue
             tokenized = mabed.corpus.tokenize(doc_text)
 
             interesting_words = words_to_keep.intersection(tokenized)
@@ -91,8 +91,8 @@ def nlp_iterator(it):
 def iterate_mabed_slices(mabed, slices):
     for i in slices:
         for doc_text in cached_timeslice_read(mabed.corpus, i):
-            # if len(doc_text) > 400:
-            #     continue
+            if len(doc_text) > 400:
+                continue
             yield doc_text
 
 
@@ -154,7 +154,10 @@ def make_get_rich_event_from_raw(compute_weight_for_related_term, pqueue_size: i
         slice_start = event[1][0]
         slice_end = event[1][1]  # inclusive
 
-        related_terms_max_weight = max((x[1] for x in event[3]))
+        try:
+            related_terms_max_weight = max((x[1] for x in event[3]))
+        except:
+            related_terms_max_weight = 1
 
         terms_weights = {}
 
