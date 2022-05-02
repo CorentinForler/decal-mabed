@@ -5,3 +5,4 @@ networkx
 numpy
 scipy
 tqdm
+scikit-learn
