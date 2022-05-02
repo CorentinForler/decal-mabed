@@ -158,8 +158,10 @@ class MABED:
                     candidate_word_freq = candidate_word_freq[0, :]
 
                     # compute correlation and filter according to theta
-                    weight = (st.erdem_correlation(
-                        main_word_freq, candidate_word_freq) + 1) / 2
+                    # weight = (st.erdem_correlation(
+                    #     main_word_freq, candidate_word_freq) + 1) / 2
+                    weight = st.erdem_correlation_java(
+                        main_word_freq, candidate_word_freq, basic_event[1][0], basic_event[1][1])
                     if weight >= self.theta:
                         related_words.append((candidate_word, weight))
 
@@ -179,6 +181,9 @@ class MABED:
             'redundancy_graph': self.redundancy_graph,
             'events': self.events,
         }
+
+
+
 
     def anomaly(self, time_slice, observation, total_mention_freq):
         # compute the expected frequency of the given word at this time-slice
