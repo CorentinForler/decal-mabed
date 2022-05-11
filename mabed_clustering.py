@@ -186,12 +186,14 @@ if __name__ == '__main__':
     mabed = get_mabed()
 
     # Paramètres
-    Nb_ev = 100 # Nombre d'events que MABED doit trouver
+    Nb_ev = 1000 # Nombre d'events que MABED doit trouver
     p = 10
     theta = 0.6
     sigma = 0.5
 
     mabed.run(Nb_ev, p, theta, sigma)
+
+    compute_matrix = time.time()
     distance_matrix_path = "distance_matrix_" + str(Nb_ev) +"_" + str(p) +"_" + str(theta) + "_" + str(sigma) + ".json"
 
 
@@ -206,8 +208,14 @@ if __name__ == '__main__':
 
         with open(distance_matrix_path, "w") as file_dm:
             json.dump(distance_matrix.tolist(), file_dm)
+    end_compute_matrix = time.time()
 
+
+    clustering_time = time.time()
     clustering = cl.OPTICS(min_samples=2, max_eps=np.inf, metric="precomputed", n_jobs=-1).fit(distance_matrix)
+
+    
+    end_clustering_time = time.time()
     print(clustering.labels_)
     print("number of clusters : ", set(clustering.labels_))
     
@@ -216,4 +224,7 @@ if __name__ == '__main__':
     print("number of events : ", len(events))
 
     end_time = time.time()
+    print("basic_event :", len(distance_matrix[0]))
     print("duration:", end_time - start_time)
+    print("compute_matrix : ", end_compute_matrix - compute_matrix)
+    print("clustering time : ", end_clustering_time - clustering_time)
