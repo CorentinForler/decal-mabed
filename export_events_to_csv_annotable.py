@@ -1,18 +1,14 @@
 # coding: utf-8
 
 # std
-import csv
 import xlsxwriter
 from datetime import datetime
 from operator import itemgetter
-import sys
-import time
 import argparse
-import json
 
 # mabed
 from mabed.corpus import Corpus
-from mabed.find_articles import describe_events_okapi_bm25, find_articles_for_events, lorem_ipsum
+from mabed.find_articles import find_articles_for_events
 from mabed.mabed import MABED
 import mabed.utils as utils
 

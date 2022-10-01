@@ -3,8 +3,6 @@
 # std
 from datetime import datetime
 import math
-import sys
-import json
 from export_events_to_csv_annotable import get_mabed
 
 # mabed

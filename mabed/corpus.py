@@ -38,6 +38,7 @@ class Corpus:
             filter_date_after: datetime = None,
     ):
         self.tokenize_single_iterator_regex = re.compile('[^\w-]', re.UNICODE)
+        self.is_a_year_regex = re.compile('^\d{4}$', re.UNICODE)
 
         self.source_file_path = source_file_path
         self.min_absolute_freq = min_absolute_freq
@@ -102,12 +103,15 @@ class Corpus:
             self, CacheLevel.L1_DATASET, filename='', ext='', mabed=None)
         print('   Cache key: %s' % cache_key)
 
-    @corpus_cached(CacheLevel.L2_VOCAB, "vocab_map")
+    @corpus_cached(CacheLevel.L1_DATASET, "vocab_map")
     def compute_filtered_vocabulary_map(self, min_absolute_freq, max_relative_freq, vocab_vector):
         vocab_map = {}
         word_index = 0
         for word, frequency in vocab_vector:
-            if frequency > min_absolute_freq and float(frequency / self.size) < max_relative_freq and word not in self.stopwords:
+            if frequency > min_absolute_freq \
+                    and float(frequency / self.size) < max_relative_freq \
+                    and word not in self.stopwords\
+                    and not self.is_a_year_regex.match(word):
                 vocab_map[word] = word_index
                 word_index += 1
         return vocab_map

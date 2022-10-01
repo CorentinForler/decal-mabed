@@ -16,7 +16,7 @@ def get_sentence_vector(tup):
     return nlp_doc.vector  # TODO: compute a better vector representation
 
 
-def lorem_ipsum(mabed, raw_events, n_articles):
+def find_articles_test_1(mabed, raw_events, n_articles):
     get_rich_event_from_raw = make_get_rich_event_from_raw(
         get_related_weight_method(None), n_articles
     )
@@ -314,7 +314,7 @@ def find_articles_for_events(
             avg_proj_norm = None
             if use_nlp:
                 all_terms = event['words']
-                thresh = int(max(1, len(all_terms) * 0.25))
+                # thresh = int(max(1, len(all_terms) * 0.25))
 
                 # compute sentence vector representation for the text
                 # https://spacy.io/usage/vectors-similarity
@@ -421,3 +421,19 @@ def pqueue_get_all(priority_queue: PriorityQueue):
     out = sorted(out, key=operator.itemgetter(0), reverse=True)
     # out = list(map(operator.itemgetter(1), out))
     return out
+
+
+def iterate_all_articles_for_periods(mabed, periods: list):
+    all_articles = mabed.corpus.source_csv_iterator()
+    for date, text in tqdm(all_articles, desc='Iterating articles'):
+        # for each article, find which period(s) it belongs to
+        # (and these periods are linked to events)
+        periodIndices = set()
+
+        for periodIndex, period in enumerate(periods):
+            ts, te = period
+            if ts <= date <= te:
+                periodIndices.add(periodIndex)
+
+        if periodIndices:
+            yield periodIndices, date, text

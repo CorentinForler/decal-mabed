@@ -12,12 +12,15 @@ from queue import PriorityQueue
 # math
 import networkx as nx
 import numpy as np
-from mabed.find_articles import find_articles_for_events
+from mabed.estimate_events import run_with_auto_k
+from mabed.find_articles import find_articles_for_events, iterate_all_articles_for_periods
 from mabed.mabed_cache import JSON_EXTENSION, PICKLE_EXTENSION, CacheLevel, cached_timeslice_read, mabed_cached
 import mabed.stats as st
+import mabed.utils as utils
 from tqdm import tqdm
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from mabed.corpus import Corpus
 
@@ -42,6 +45,9 @@ class MABED:
         self.k = k
         self.theta = theta
         self.sigma = sigma
+
+        if type(self.k) is not int or self.k <= 0:
+            return self.run_with_auto_k()
         # basic_events = self.phase1()
         basic_events = None  # may use phase2 cache without loading phase1
         return self.phase2(basic_events)
@@ -182,9 +188,6 @@ class MABED:
             'events': self.events,
         }
 
-
-
-
     def anomaly(self, time_slice, observation, total_mention_freq):
         # compute the expected frequency of the given word at this time-slice
         expectation = float(self.corpus.tweet_count[time_slice]) * (
@@ -294,3 +297,101 @@ class MABED:
 
     def find_articles_for_events(self, **kwargs):
         return find_articles_for_events(mabed=self, raw_events=self.events, **kwargs)
+
+    def run_with_auto_k(self, n_max_events=100):
+        return run_with_auto_k(self, n_max=n_max_events)
+
+    @mabed_cached(CacheLevel.L4_MABED, 'cytoscape_graph', JSON_EXTENSION)
+    def as_cytoscape_graph(self):
+        events = list(utils.iterate_events_as_dict(self))
+
+        out = []
+        idsToIndex = {}
+
+        for idx, e in tqdm(enumerate(events), unit=' events', desc='Creating nodes from events'):
+            idsToIndex[id] = idx
+            mainTerms = e['term'].split(', ')
+
+            out.append({
+                "group": "nodes",
+                "data": {
+                    "label": ', '.join(mainTerms),
+                    "dateStart": e['start'],
+                    "dateEnd": e['end'],
+                    "id": idx,
+                },
+            })
+            idx += 1
+
+        def rangeTriangle(n):
+            for i in range(n):
+                for j in range(i + 1, n):
+                    yield i, j
+
+        pairs = rangeTriangle(len(out))
+        edgesToCompute: list = []
+        edgeTerms: list = []
+        for i, j in tqdm(pairs, unit=' pairs', desc='Creating edges between events'):
+            sourceId = i  # out[i]['data']['id']
+            targetId = j  # out[j]['data']['id']
+            sourceEvent = events[i]
+            targetEvent = events[j]
+
+            dateStart = max(sourceEvent['start'], targetEvent['start'])
+            dateEnd = min(sourceEvent['end'], targetEvent['end'])
+
+            edge = {
+                "group": "edges",
+                "data": {
+                    "source": sourceId,
+                    "target": targetId,
+                    "weight": 0,
+                    "dateStart": dateStart,
+                    "dateEnd": dateEnd,
+                    "id": f'{sourceId}-{targetId}',
+                },
+            }
+            edgesToCompute.append(edge)
+            sourceTerms = utils.getAllTermsForEvent(sourceEvent)
+            targetTerms = utils.getAllTermsForEvent(targetEvent)
+            edgeTerms.append((sourceTerms, targetTerms))
+            out.append(edge)
+
+        def update_weights(tup):
+            edgeIndices, date, text = tup
+            for edgeIndex in edgeIndices:
+                edge = edgesToCompute[edgeIndex]
+                sourceTerms, targetTerms = edgeTerms[edgeIndex]
+
+                if date < edge['data']['dateStart'] or date > edge['data']['dateEnd']:
+                    continue
+
+                sourceTermsInText = [t for t in sourceTerms if t in text]
+                targetTermsInText = [t for t in targetTerms if t in text]
+
+                if len(sourceTermsInText) == 0 or len(targetTermsInText) == 0:
+                    continue
+
+                edge['data']['weight'] += 1  # len(sourceTermsInText) * len(targetTermsInText)
+
+        it = iterate_all_articles_for_periods(self, [
+            (e['data']['dateStart'], e['data']['dateEnd'])
+            for e in edgesToCompute
+        ])
+        p = ThreadPool(32)
+        it = p.imap_unordered(update_weights, it)
+        it = tqdm(it, unit=' periods', desc='Computing edge weights')
+
+        p.close()
+        for _ in it:
+            pass  # consume iterator
+
+        out = list(filter(lambda e: e['group'] != 'edges' or e['data']['weight'] > 0, out))
+        maxWeight = max([e['data']['weight'] for e in out if e['group'] == 'edges'])
+        for e in out:
+            if e['group'] == 'edges':
+                w = e['data']['weight']
+                e['data']['rawWeight'] = w
+                e['data']['weight'] = w / maxWeight
+
+        return out

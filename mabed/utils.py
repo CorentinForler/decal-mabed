@@ -3,7 +3,6 @@ import csv
 from datetime import datetime
 import timeit
 import contextlib
-import os
 import pickle
 from typing import Counter
 
@@ -114,6 +113,14 @@ def pick_fields(obj, fields):
     return {field: getattr(obj, field) for field in fields}
 
 
+class EVT:
+    MAG = 0
+    TIME_INTERVAL = 1
+    MAIN_TERM = 2
+    RELATED_TERMS = 3
+    ANOMALY = 4
+
+
 def iterate_events_as_dict(mabed):
     formatted_dates = []
 
@@ -121,17 +128,18 @@ def iterate_events_as_dict(mabed):
         formatted_dates.append(str(mabed.corpus.to_date(i)))
 
     for event in mabed.events:
-        mag = event[0]
-        main_term = event[2]
-        raw_anomaly = event[4]
+        mag = event[EVT.MAG]
+        main_term = event[EVT.MAIN_TERM]
+        raw_anomaly = event[EVT.ANOMALY]
         anomalies = []
-        time_interval = event[1]
+        time_interval = event[EVT.TIME_INTERVAL]
         related_terms = []
 
-        for related_term in event[3]:
+        for related_term in event[EVT.RELATED_TERMS]:
             related_terms.append({
                 'term': related_term[0],
                 'mag': related_term[1],
+                # 'isMain': related_term[0] in main_term.split(', '),
             })
 
         for i in range(0, mabed.corpus.time_slice_count):
@@ -164,6 +172,14 @@ def timer(step_name: str):
     yield start_time
     elapsed = timeit.default_timer() - start_time
     print(step_name, f'in {elapsed:.3f} seconds.')
+
+
+@contextlib.contextmanager
+def timing(key: str, out: dict):
+    start_time = timeit.default_timer()
+    yield
+    elapsed = timeit.default_timer() - start_time
+    out[key] = elapsed
 
 
 def auto_detect_csv_settings(path: str):
@@ -233,3 +249,10 @@ def parallel_iterator_unordered(it):
     pool = ThreadPool()
     for i in pool.imap_unordered(lambda x: x, it):
         yield i
+
+
+def getAllTermsForEvent(ev):
+    terms = ev['term'].split(', ')
+    for a in ev['related']:
+        terms.extend(a['term'].split(', '))
+    return terms

@@ -1,4 +1,3 @@
-from asyncio.windows_events import NULL
 from datetime import datetime
 
 # mabed
@@ -115,7 +114,7 @@ def get_related_words(ev1, mabed: MABED):
                 main_word_freq, candidate_word_freq, ev1[1][0], ev1[1][1])
             if weight >= mabed.theta:
                 related_words.append((candidate_word, weight))
-    
+
     getRelatedWordsMemoize[hash] = related_words
 
     return related_words
@@ -154,7 +153,7 @@ def dist_event(ev1, ev2, mabed : MABED):
             if word == word2:
                 count_word += 1
                 break
-    
+
     return 1 - ((main_word/3) +  2*((count_word / min_nb_word)/3)) * st.overlap_coefficient(ev1[1], ev2[1])
 
 

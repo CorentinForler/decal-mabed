@@ -284,7 +284,7 @@ def cached_timeslices(corpus: 'Corpus', slices_count: int):
         with open(file_path, 'w', encoding='utf8') as dummy_file:
             dummy_file.write('')
 
-    circularbuffer = TimeSlicesCircularBuffer(512, dir_path)
+    circularbuffer = TimeSlicesCircularBuffer(100, dir_path)
 
     def get(index: int):
         return circularbuffer.get(index)
