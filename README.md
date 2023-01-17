@@ -1,10 +1,10 @@
-# Event Visualisation w/ MABED (PhD-Track)
+# DECAL: Detect Events with Clustering and Automatic Labeling
 
 This project is a fork of [AdrienGuille/pyMABED](https://github.com/AdrienGuille/pyMABED)
 
 ## About
 
-pyMABED is a Python 3 implementation of [MABED](#mabed), distributed under the terms of the MIT licence. If you make use of this software in your research, please cite one the [references](#references) below.
+DECAL is a set of improvements over the Python 3 implementation of [MABED](#mabed), distributed under the terms of the MIT licence. If you make use of this software in your research, please cite one the [references](#references) below.
 
 ### MABED
 
@@ -63,7 +63,7 @@ By default, `build_event_browser.py` starts a local Web server accessible at htt
 
 -   Adrien Guille
 -   Nicolas Dugué
--   Corentin F [@cogk](https://github.com/cogk)
+-   Corentin F <https://github.com/cogk>
 
 ## References
 
