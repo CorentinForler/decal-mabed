@@ -267,6 +267,8 @@ def find_articles_for_events(
     divide_score_by_length=False,
     use_nlp=False,
 ):
+    assert n_articles >= 1, "find_articles_for_events: n_articles should be at least 1"
+
     compute_weight_for_related_term = get_related_weight_method(
         secondary_term_fixed_weight)
 

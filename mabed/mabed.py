@@ -30,7 +30,7 @@ __email__ = "adrien.guille@univ-lyon2.fr"
 
 class MABED:
 
-    def __init__(self, corpus: 'Corpus'):
+    def __init__(self, corpus: 'Corpus', extra: dict = None):
         self.corpus = corpus
         self.event_graph = None
         self.redundancy_graph = None
@@ -39,15 +39,33 @@ class MABED:
         self.k = None
         self.theta = None
         self.sigma = None
+        self.extra = extra or dict()
 
-    def run(self, k: int = 10, p: int = 10, theta: float = 0.6, sigma: float = 0.5):
+    def run(self, k: int = 10, p: int = 10, theta: float = 0.6, sigma: float = 0.5, event_filter=None):
         self.p = p
         self.k = k
         self.theta = theta
         self.sigma = sigma
 
-        if type(self.k) is not int or self.k <= 0:
-            return self.run_with_auto_k()
+        self.event_filters = []
+        self.post_clustering_event_filters = []
+        if event_filter:
+            self.event_filters.append(event_filter)
+
+        if not isinstance(self.k, int) or self.k <= 0:
+            if isinstance(self.k, int) and self.k < 0:
+                # HACK: If k is negative, it's a hint that we have to
+                # truncate the list of events. Set up the filter
+                # by chaining it with self.event_filter
+                k = -self.k
+                def truncator(events, mabed):
+                    return events[:k]
+
+                self.post_clustering_event_filters.append(truncator)
+
+            n_search = 100  # max events with auto k
+            return run_with_auto_k(self, n_search=n_search)
+
         # basic_events = self.phase1()
         basic_events = None  # may use phase2 cache without loading phase1
         return self.phase2(basic_events)
@@ -127,6 +145,32 @@ class MABED:
         self.event_graph = o['event_graph']
         self.redundancy_graph = o['redundancy_graph']
         self.events = o['events']
+        self.perform_filtering('post phase 2 (maybe cached)')
+
+    def perform_filtering(self, label='- perform_filtering'):
+        self.events = self.apply_filters(self.events, self.event_filters, label)
+
+    def apply_filters(self, events=None, filters=None, label=''):
+        events = events or self.events
+        filters = filters or self.event_filters
+
+        if filters and events:
+            print('┌╴ Filter stats', label)
+            print('│  #filters:', len(filters))
+            print('│  input:', len(events), 'events')
+            for i, filt in enumerate(filters):
+                print(f'├╴ after filter #{i}: ', end='')
+                o = filt(events, self)
+                is_idempotent = o == filt(events, self)
+                if not is_idempotent:
+                    raise Exception('not idempotent')
+                events = list(o) or events
+                print(f'{len(events)} events')
+            print('└╴ final:', len(events), 'events')
+            print()
+            # input('Press <Enter> to continue.')
+
+        return events
 
     @mabed_cached(CacheLevel.L4_MABED, 'mabed_phase_2', PICKLE_EXTENSION)
     def compute_phase2(self, basic_events):
@@ -179,6 +223,9 @@ class MABED:
                         refined_events.append(refined_event)
                         unique_events += 1
             i += 1
+
+        self.perform_filtering('inside phase 2 computation (no cache)')
+
         # merge redundant events and save the result
         self.events = self.merge_redundant_events(refined_events)
 
@@ -275,18 +322,18 @@ class MABED:
 
     def print_event(self, event):
         related_words = []
-        for related_word, weight in event[3]:
-            related_words.append(f'{related_word}({weight:.2f})')
+        for related_word, weight in sorted(event[3], key=1):
+            related_words.append(f'{related_word} ({100*weight:.1f}%)')
 
         dt_beg = str(self.corpus.to_date(event[1][0]))
         dt_end = str(self.corpus.to_date(event[1][1]))
 
-        print(f'* {event[2]}')
-        print(f'| magnitude: {event[0]}')
-        print(f'| start: {dt_beg}')
-        print(f'| end:   {dt_end}')
-        print(f'| related words: {", ".join(related_words)}')
-        print()
+        print(f'┌╴ {event[2]}')
+        print(f'│ mag:   {event[0]}')
+        print(f'│ start: {dt_beg}')
+        print(f'│ end:   {dt_end}')
+        print(f'│ related: {", ".join(related_words)}')
+        print(f'└╴')
 
     def print_events(self):
         print('   Top %d events:' % len(self.events))
@@ -295,13 +342,11 @@ class MABED:
         for event in self.events:
             self.print_event(event)
 
-    def find_articles_for_events(self, **kwargs):
-        return find_articles_for_events(mabed=self, raw_events=self.events, **kwargs)
+    def find_articles_for_events(self, n_articles=1, **kwargs):
+        assert n_articles >= 1, "mabed.find_articles_for_events: n_articles should be at least 1"
+        return find_articles_for_events(mabed=self, n_articles=n_articles, raw_events=self.events, **kwargs)
 
-    def run_with_auto_k(self, n_max_events=100):
-        return run_with_auto_k(self, n_max=n_max_events)
-
-    @mabed_cached(CacheLevel.L4_MABED, 'cytoscape_graph', JSON_EXTENSION)
+    # @mabed_cached(CacheLevel.L4_MABED, 'cytoscape_graph', JSON_EXTENSION)
     def as_cytoscape_graph(self):
         events = list(utils.iterate_events_as_dict(self))
 
@@ -374,17 +419,21 @@ class MABED:
 
                 edge['data']['weight'] += 1  # len(sourceTermsInText) * len(targetTermsInText)
 
-        it = iterate_all_articles_for_periods(self, [
-            (e['data']['dateStart'], e['data']['dateEnd'])
-            for e in edgesToCompute
-        ])
-        p = ThreadPool(32)
-        it = p.imap_unordered(update_weights, it)
-        it = tqdm(it, unit=' periods', desc='Computing edge weights')
+        def compute_all_weights():
+            periods = [ (e['data']['dateStart'], e['data']['dateEnd']) for e in edgesToCompute ]
+            it = iterate_all_articles_for_periods(self, periods)
+            p = ThreadPool(32)
+            it = p.imap_unordered(update_weights, it)
+            it = tqdm(it, total=len(periods), unit=' periods', desc='Computing edge weights')
+            p.close()
+            list(it) # consume iterator
 
-        p.close()
-        for _ in it:
-            pass  # consume iterator
+        def set_all_weights_to_one():
+            for e in edgesToCompute:
+                e['data']['weight'] = 1
+
+        compute_all_weights()
+        # set_all_weights_to_one()
 
         out = list(filter(lambda e: e['group'] != 'edges' or e['data']['weight'] > 0, out))
         maxWeight = max([e['data']['weight'] for e in out if e['group'] == 'edges'])

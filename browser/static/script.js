@@ -417,7 +417,7 @@ function init(event_impact) {
     e.preventDefault()
 
     const values = {}
-    for (const input of form.querySelectorAll('input[name],select[name]')) {
+    for (const input of form.querySelectorAll('input[name],select[name],textarea[name]')) {
       values[input.name] = input.value
     }
 

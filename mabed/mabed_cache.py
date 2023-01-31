@@ -64,9 +64,8 @@ def _cached_load(file, path):
 
 @lru_cache(maxsize=None)
 def should_not_use_cache():
-    # check if global variable named GLOBAL_DISABLE_CACHE exists
-    if 'GLOBAL_DISABLE_CACHE' in globals():
-        global GLOBAL_DISABLE_CACHE
+    # check env DECAL_NO_CACHE:
+    if os.environ.get("DECAL_NO_CACHE", False):
         return True
     return False
 
@@ -168,7 +167,7 @@ def corpus_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION
 
             if file_path is not None and os.path.isfile(file_path):
                 with open(file_path, "rb") as file:
-                    print(f"\x1b[1;34mcached\x1b[m {level.name} {filename}")
+                    print(f"\x1b[1;34mcached\x1b[m {level.name} {filename} {file_path}")
                     return _cached_load(file, file_path)
 
             result = func(c, *args, **kwargs)
@@ -193,7 +192,7 @@ def mabed_cached(level: CacheLevel, filename: str, ext: str = DEFAULT_EXTENSION,
     def get_cached_result(file_path):
         if file_path is not None and os.path.isfile(file_path):
             with open(file_path, "rb") as file:
-                print(f"\x1b[1;34mcached\x1b[m {level.name} {filename}")
+                print(f"\x1b[1;34mcached\x1b[m {level.name} {filename} {file_path}")
                 return _cached_load(file, file_path)
 
     def wrapper(func):

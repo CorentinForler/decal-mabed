@@ -5,6 +5,7 @@ Simple Flask API server returning JSON data
 from datetime import datetime
 from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS
+import json
 
 from cli import do_mabed, print_timing
 
@@ -41,10 +42,17 @@ def events_GET():
 
     n_articles = request.args.get('n_articles', default=1, type=int)
 
+    extra = request.args.get('extra', default="{}", type=str)
+    try:
+        extra = json.loads(extra)
+    except:
+        return jsonify({ "error": "invalid param: extra" }), 400
+
     if k is None:
         return jsonify(missing_param('k')), 400
 
     params = {}
+    params.update(extra)
 
     params['label'] = request.args.get('label', default='no label', type=str)
 
@@ -62,7 +70,7 @@ def events_GET():
 
     params['n_articles'] = n_articles
 
-    events, timing = do_mabed(params)
+    events, timing, mabed = do_mabed(params)
 
     res = jsonify(events)
 

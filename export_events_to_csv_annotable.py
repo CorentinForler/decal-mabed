@@ -18,8 +18,8 @@ __email__ = ""
 
 def get_mabed(
     *,
-    input_path="../stock_article_uniq.csv",
-    stopwords="../customStopWords.txt",
+    input_path="./stock_article.csv",
+    stopwords="./stopwords/custom.txt",
     min_absolute_frequency=10,
     max_relative_frequency=0.2,
     time_slice_length=1440,

@@ -58,7 +58,10 @@ def szymkiewicz_simpson(x: set, y: set):
     Szymkiewicz–Simpson coefficient
     https://en.wikipedia.org/wiki/overlap_coefficient
     """
-    return len(x.intersection(y)) / min(len(x), len(y))
+    min_len = min(len(x), len(y))
+    if min_len == 0:
+        return 0.0
+    return len(x.intersection(y)) / min_len
 
 def overlap_coefficient(X: tuple, Y: tuple):
     """
@@ -80,3 +83,32 @@ def overlap_coefficient(X: tuple, Y: tuple):
         return 0
 
     return float(intersection_cardinality / smallest_interval_cardinality)
+
+def distance_in_time(X: tuple, Y: tuple, period: tuple = None):
+    # a_beg <= a_end
+    if X[0] <= Y[0]:
+        a_beg, a_end, b_beg, b_end = *X, *Y
+    else:
+        a_beg, a_end, b_beg, b_end = *Y, *X
+
+    if period is None:
+        # compute period using input events
+        period = a_beg, max(a_end, b_end)  # min(a_beg, b_beg) = a_beg
+
+    # a_len = a_end - a_beg
+    # b_len = b_end - b_beg
+    period_len = period[1] - period[0]
+
+    assert period_len > 0, "distance_in_time: period is empty"
+    assert period[0] <= a_beg, "distance_in_time: implementation has a bug"
+    assert period[1] >= max(a_end, b_end), "distance_in_time: implementation has a bug"
+
+    gap = b_beg - a_end  # negative if overlap, positive if gap
+
+    return gap / period_len
+
+
+assert distance_in_time((2000, 2015), (2005, 2020)) == -0.5, "sanity check failed: events are overlapping by 50%"
+assert distance_in_time((2000, 2010), (2010, 2020)) == 0, "sanity check failed: events are close to each other"
+assert distance_in_time((2000, 2005), (2015, 2020)) == 0.5, "sanity check failed: events are separated by 50% of the whole period (2000-2020)"
+

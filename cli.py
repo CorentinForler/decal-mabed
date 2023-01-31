@@ -53,7 +53,7 @@ def get_raw_mabed(
         max_relative_freq=max_relative_frequency,
         filter_date_after=filter_date_after,
     )
-    mabed = MABED(my_corpus)
+    mabed = MABED(my_corpus, extra=rest)
     return mabed
 
 
@@ -75,15 +75,16 @@ def do_mabed(params):
             mabed.corpus.discretize(time_slice_length=params['time_slice_length'])
 
         with utils.timing('run', timing):
-            mabed.run(k=params['k'], p=params['p'], theta=params['theta'], sigma=params['sigma'])
+            mabed.run(k=params['k'], p=params['p'], theta=params['theta'], sigma=params['sigma'], event_filter=params.get('event_filter', None))
 
     with utils.timing('iterate_events', timing):
         events = list(utils.iterate_events_as_dict(mabed))
 
-    with utils.timing('find_articles', timing):
-        articles = mabed.find_articles_for_events(n_articles=params['n_articles'])
-        for e, a in zip(events, articles):
-            e['articles'] = a
+    if params.get('n_articles', 0) > 0:
+        with utils.timing('find_articles', timing):
+            articles = mabed.find_articles_for_events(n_articles=params['n_articles'])
+            for e, a in zip(events, articles):
+                e['articles'] = a
 
     return events, timing, mabed
 
@@ -98,19 +99,23 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Run MABED on a corpus.')
     parser.add_argument('input', help='Path to the corpus file.', default='../out2.csv')
-    parser.add_argument('--output', help='Path to the output file.', default=sys.stdout)
-    parser.add_argument('--stopwords', help='Path to the stopwords file.', default=f'{root}/stopwords/custom.txt')
+    parser.add_argument('-o', '--output', help='Path to the output file.', default=sys.stdout)
+    parser.add_argument('-w', '--stopwords', help='Path to the stopwords file.', default=f'{root}/stopwords/custom.txt')
     parser.add_argument('--maf', type=int, help='Minimum absolute frequency.', default=10)
     parser.add_argument('--mrf', type=float, help='Maximum relative frequency.', default=0.2)
-    parser.add_argument('--filter_date_after', type=lambda s: datetime.strptime(s, '%Y-%m-%d'), help='Filter articles after this date.', default='2014-01-01')
-    parser.add_argument('--tsl', type=int, help='Time slice length.', default=182 * 24 * 60)
-    parser.add_argument('--k', type=int, help='Number of top events to detect (0 for auto).', default=0)
-    parser.add_argument('--p', type=int, help='Number of words per event.', default=10)
-    parser.add_argument('--theta', type=float, help='Theta parameter.', default=0.6)
-    parser.add_argument('--sigma', type=float, help='Sigma parameter.', default=0.5)
-    parser.add_argument('--n_articles', type=int, help='Number of articles to retrieve for each event.', default=1)
-    parser.add_argument('--verbose', action='store_true', help='Verbose mode.')
-    parser.add_argument('--as-graph', action='store_true', help='Export as graph for Cytoscape.')
+    parser.add_argument('-D', '--filter_date_after', type=lambda s: datetime.strptime(s, '%Y-%m-%d'), help='Filter articles after this date.', default='2014-01-01')
+    parser.add_argument('-L', '--tsl', type=int, help='Time slice length.', default=182 * 24 * 60)
+    parser.add_argument('-k', '--k', type=int, help='Number of top events to detect (0 for auto).', default=0)
+    parser.add_argument('-p', '--p', type=int, help='Number of words per event.', default=10)
+    parser.add_argument('-t', '--theta', type=float, help='Theta parameter.', default=0.6)
+    parser.add_argument('-s', '--sigma', type=float, help='Sigma parameter.', default=0.5)
+    parser.add_argument('-N', '--n_articles', type=int, help='Number of articles to retrieve for each event.', default=1)
+    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose mode.')
+    parser.add_argument('-G', '--as-graph', action='store_true', help='Export as graph for Cytoscape.')
+    parser.add_argument('-F', '--event-filter', type=str, help='Python code of the body of a function used to filter events. Its signature is (event) -> bool. Example: --event-filter=\'"coronavirus" in event.term.split(", ")\'')
+    parser.add_argument('--json', action='store_true', help='Write output events as JSON')
+    parser.add_argument('--cluster-func', type=str, help='Event distance function to use during clustering. It is a string composed of two parts: an aggregator (sum, prod, norm) and a set of properties (text, time, gap) separated by commas. Example: --cluster-func="norm:text,time,gap"')
+    parser.add_argument('-x', '--option', type=str, action='append', help='Options to pass to the MABED "extra" parameter. It is a string composed of two parts: a key and a value separated by a colon. Example: --option="recursive_clustering:yes"')
 
     args = parser.parse_args()
 
@@ -129,7 +134,59 @@ if __name__ == '__main__':
         'n_articles': args.n_articles,
         'verbose': args.verbose,
         'as_graph': args.as_graph,
+        'cluster_func': args.cluster_func,
     }
+
+    if args.event_filter:
+        def event_filter__generated(events, mabed):
+            def run_filter_one(event):
+                event_id = event[utils.EVT.MAIN_TERM]
+                time_interval = event[utils.EVT.TIME_INTERVAL]
+                time_start = str(mabed.corpus.to_date(time_interval[0]))
+                time_end = str(mabed.corpus.to_date(time_interval[1]))
+
+                main_terms = utils.get_main_terms(event)
+                related_terms = utils.get_related_terms(event)
+                all_terms = main_terms | related_terms
+
+                res = eval(args.event_filter, None, {
+                    'event': event,
+                    'id': event_id,
+                    'mag': event[utils.EVT.MAG],
+                    'main_terms': main_terms,
+                    'related_terms': related_terms,
+                    'all_terms': all_terms,
+                    'time_start': time_start,
+                    'time_end': time_end,
+                })
+
+                # if res:
+                #     print('\x1b[32m', end='')
+                #     print('    ☑︎', args.event_filter)
+                # else:
+                #     print('\x1b[2;31m', end='')
+                #     print('    ☐', args.event_filter)
+                # print('    │', 'main_terms:', main_terms)
+                # print('    │', 'related_terms:', related_terms)
+                # print('\x1b[0m', end='')
+
+                return bool(res)
+
+            return list(filter(run_filter_one, events))
+
+        params['event_filter'] = event_filter__generated
+
+    map_str_to_val = {
+        'True': True,
+        'False': False,
+        }
+    for option in args.option or []:
+        if ':' in option:
+            key, value = option.split(':')
+            value = map_str_to_val.get(value, value)
+            params[key] = value
+        else:
+            params[key] = True
 
     if args.verbose:
         print('Running MABED with the following parameters:')
@@ -143,17 +200,22 @@ if __name__ == '__main__':
         print_timing(timing)
 
     if args.as_graph:
-        out = mabed.as_cytoscape_graph()
+        g = mabed.as_cytoscape_graph()
         if args.output == sys.stdout or args.output == '-':
-            json.dump(out, sys.stdout, indent=2)
+            json.dump(g, sys.stdout, indent=2)
         else:
             with open(args.output, 'w') as f:
-                json.dump(out, f, indent=2)
+                json.dump(g, f, indent=2)
 
         sys.exit(0)
 
-    if args.output == sys.stdout or args.output == '-':
-        json.dump(events, sys.stdout, indent=2)
+    if args.json:
+        if args.output == sys.stdout or args.output == '-':
+            json.dump(events, sys.stdout, indent=2)
+        else:
+            with open(args.output, 'w') as f:
+                json.dump(events, f)
     else:
-        with open(args.output, 'w') as f:
-            json.dump(events, f, indent=2)
+        print(f'{len(events)} events:')
+        for ev in events:
+            print(utils.stringify_rich_event(ev, mabed, more_info=True))

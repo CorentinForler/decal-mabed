@@ -1,12 +1,18 @@
 # coding: utf-8
 import csv
+import os
+import sys
 from datetime import datetime
 import timeit
 import contextlib
 import pickle
+import math
 from typing import Counter
+from operator import itemgetter
 
-__author__ = "Adrien Guille"
+from mabed.sparkline import spark_event
+
+__author__ = "Adrien Guille, Corentin F."
 __email__ = "adrien.guille@univ-lyon2.fr"
 
 
@@ -119,51 +125,59 @@ class EVT:
     MAIN_TERM = 2
     RELATED_TERMS = 3
     ANOMALY = 4
+    EXTRA = 5
+
+
+class REL_TERM:
+    TXT = 0
+    MAG = 1
+
+
+def event_tuple_as_dict(mabed, event):
+    mag = event[EVT.MAG]
+    main_term = event[EVT.MAIN_TERM]
+    main_terms = set(main_term.split(', '))
+    raw_anomaly = event[EVT.ANOMALY]
+    anomalies = []
+    time_interval = event[EVT.TIME_INTERVAL]
+    related_terms = []
+
+    for related_term in event[EVT.RELATED_TERMS]:
+        if related_term[REL_TERM.TXT] in main_terms:
+            continue
+        related_terms.append({
+            'term': related_term[REL_TERM.TXT],
+            'mag': related_term[REL_TERM.MAG],
+            # 'isMain': related_term[0] in main_term.split(', '),
+        })
+
+    for i in range(0, mabed.corpus.time_slice_count):
+        value = 0
+
+        if time_interval[0] <= i <= time_interval[1]:
+            value = raw_anomaly[i]
+            if value < 0:
+                value = 0
+
+        anomalies.append({
+            'date': str(mabed.corpus.to_date(i)),
+            'value': value,
+        })
+
+    return {
+        'mag': mag,
+        'start': str(mabed.corpus.to_date(time_interval[0])),
+        'end': str(mabed.corpus.to_date(time_interval[1])),
+        'term': main_term,
+        'related': related_terms,
+        'impact': anomalies,
+        'extra': event[EVT.EXTRA] if len(event) > EVT.EXTRA else None,
+    }
 
 
 def iterate_events_as_dict(mabed):
-    formatted_dates = []
-
-    for i in range(0, mabed.corpus.time_slice_count):
-        formatted_dates.append(str(mabed.corpus.to_date(i)))
-
     for event in mabed.events:
-        mag = event[EVT.MAG]
-        main_term = event[EVT.MAIN_TERM]
-        raw_anomaly = event[EVT.ANOMALY]
-        anomalies = []
-        time_interval = event[EVT.TIME_INTERVAL]
-        related_terms = []
-
-        for related_term in event[EVT.RELATED_TERMS]:
-            related_terms.append({
-                'term': related_term[0],
-                'mag': related_term[1],
-                # 'isMain': related_term[0] in main_term.split(', '),
-            })
-
-        for i in range(0, mabed.corpus.time_slice_count):
-            value = 0
-
-            if time_interval[0] <= i <= time_interval[1]:
-                value = raw_anomaly[i]
-                if value < 0:
-                    value = 0
-
-            anomalies.append({
-                'date': str(formatted_dates[i]),
-                'value': value,
-            })
-            # anomalies.append(value)
-
-        yield {
-            'mag': mag,
-            'start': str(mabed.corpus.to_date(time_interval[0])),
-            'end': str(mabed.corpus.to_date(time_interval[1])),
-            'term': main_term,
-            'related': related_terms,
-            'impact': anomalies,
-        }
+        yield event_tuple_as_dict(mabed, event)
 
 
 @contextlib.contextmanager
@@ -255,4 +269,102 @@ def getAllTermsForEvent(ev):
     terms = ev['term'].split(', ')
     for a in ev['related']:
         terms.extend(a['term'].split(', '))
-    return terms
+    return list(set(terms))
+
+
+def get_main_terms(event):
+    return set(event[EVT.MAIN_TERM].split(', '))
+
+
+def get_related_terms(event):
+    return set(map(itemgetter(REL_TERM.TXT), event[EVT.RELATED_TERMS]))
+
+
+def get_main_and_related_terms(event):
+    return get_main_terms(event) | get_related_terms(event)
+
+
+def millify(n):
+    millnames = ['','k','·10⁶','·10⁹','·10¹²']
+    # https://stackoverflow.com/a/3155023
+    n = float(n)
+    millidx = max(0, min(len(millnames)-1, int(math.floor(0 if n == 0 else math.log10(abs(n))/3))))
+    return '{:.2f}{}'.format(n / 10**(3 * millidx), millnames[millidx])
+
+
+def stringify_rich_event(event, mabed, more_info=False, is_terminal=sys.stdout.isatty(), use_iterm_annotations=('iTerm' in os.getenv('TERM_PROGRAM'))):
+    out = []
+
+    def pr(*args, end='\n', **kwargs):
+        out.append(''.join(map(str, args)) + end)
+
+    related_words = []
+    for r in sorted(event["related"], key=itemgetter("mag"), reverse=True):
+        related_word, weight = r["term"], r["mag"]
+        related_words.append(f'{related_word} ({100*weight:.0f}%)')
+
+    comma = is_terminal and "\x1b[2m,\x1b[0m " or ", "
+    pr(f'┌╴ {comma.join(sorted(event["term"].split(", ")))}')
+    pr(f'│ • Mag:   {millify(event["mag"])}')
+    pr(f'│ • Start: {event["start"]}')
+    pr(f'│ • End:   {event["end"]}')
+
+    # Impact
+    impact_min_dt = event["impact"][0]["date"]
+    impact_min_val = event["impact"][0]["value"]
+    impact_max_dt = event["impact"][0]["date"]
+    impact_max_val = event["impact"][0]["value"]
+    for x in event["impact"]:
+        if x["value"] > impact_max_val:
+            impact_max_dt = x["date"]
+            impact_max_val = x["value"]
+        if x["value"] < impact_min_val:
+            impact_min_dt = x["date"]
+            impact_min_val = x["value"]
+    pr(f'│ • Impact:')
+    pr(f'│   ├╴ min: {millify(impact_min_val):3} @ {impact_min_dt}')
+    pr(f'│   └╴ max: {millify(impact_max_val):3} @ {impact_max_dt}')
+
+    pr(f'│ • Related: {comma.join(related_words)}')
+    # for i, r in enumerate(related_words):
+    #     c = '└' if (i == len(related_words) - 1) else '├'
+    #     pr(f'│   {c}╴ {r}')
+
+    if more_info:
+        spark = spark_event(event)
+        if use_iterm_annotations:
+            pr(f'│ • Sparkline: \x1b]1337;AddHiddenAnnotation=60 | {spark}\x07{spark[:60]}…')
+        else:
+            pr(f'│ • Sparkline: {spark}')
+
+        if articles := event.get("articles", None):
+            pr('│ • Articles:')
+            for i, article in enumerate(sorted(articles, key=itemgetter(0), reverse=True)):
+                art_mag, art_text = article
+                c = '└' if (i == len(articles) - 1) else '├'
+                if use_iterm_annotations:
+                    pr(f'│   {c}╴ \x1b]1337;AddHiddenAnnotation=60 | {art_text}\x07{art_text[:60]}…')
+                else:
+                    pr(f'│   {c}╴ {art_text}')
+
+        if extra := event.get("extra", None):
+            pr('│ • Extra:')
+            if cluster := extra.get("cluster", None):
+                pr(f'│   ├╴ Source cluster size: {len(cluster)}')
+                for i, subev in enumerate(cluster):
+                    # c = '└╴' if (i == len(cluster) - 1) else '├╴'
+                    # pr(f'│   {c}╴ {subev[EVT.MAIN_TERM]}')
+                    c = '• '
+                    rich_subev = event_tuple_as_dict(mabed, subev)
+                    formatted_subev = stringify_rich_event(rich_subev, mabed, more_info=more_info, is_terminal=is_terminal, use_iterm_annotations=use_iterm_annotations)
+                    for line in formatted_subev.splitlines():
+                        pr(f'│   {c} {line}')
+                        c = '│ '
+
+            # pr(f'│   └╴', '[JSON data...]')
+            # pr(f'│   └╴', json.dumps(event["extra"]))
+            # pr(f'│   └╴')
+
+    pr('└╴')
+
+    return ''.join(out)
